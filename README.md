@@ -5,10 +5,9 @@ NB.no nedlaster
 For å kjøre denne koden trengs Python 2.7 og pillow.
 For å sjekke om du har python 2.7, kjør **python --version** fra kommandolinjen.
 
-Python 2.7 kan lastes ned fra https://www.python.org/download/releases/2.7/ og Pillow kan lastes ned vha. **pip install pillow** eller **easy_install pillow**
+Python 2.7 kan lastes ned fra https://www.python.org/download/releases/2.7/ Pillow legges til ved å kjøre **pip install pillow** eller **easy_install pillow** etter python er installert (Husk å få med at Python skal oppdatere Path).
 
-Kommandoer for å kjøre
-
+For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er bokID (som finnes ved å trykke del for så å kopiere tallrekken etter digibok_ i lenken som dukker opp).
 ```
 bruk: nbno.py [-h] [--id <bokID>] [--start <int>] [--stop <int>]
                [--level <int>] [--maxlevel <int>]
