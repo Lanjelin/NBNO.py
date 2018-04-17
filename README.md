@@ -21,5 +21,5 @@ valgfrie argumenter:
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
   --level <int>   Sett Level
-  --maxlevel <n>  Sett MaxLevel
+  --maxlevel <int>  Sett MaxLevel
 ```
