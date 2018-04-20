@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-import io, urllib2, os, argparse, sys
+import io, urllib2, os, argparse
 from PIL import Image
 
 class theURL():
@@ -109,7 +109,6 @@ def downloadPage(pageNum,bok):
     #print 'SingleWidth: '+str(sinWidth)+' SingleHeight: '+str(sinHeight)
     #print 'Antall bilder per side: '+str(len(imageParts))
 
-
 parser = argparse.ArgumentParser()
 optional = parser._action_groups.pop()
 required = parser.add_argument_group('required arguments')
@@ -121,7 +120,6 @@ optional.add_argument('--maxlevel', metavar='<int>', help='Sett MaxLevel', defau
 parser._action_groups.append(optional)
 args = parser.parse_args()
 
-#Download covers
 if args.id:
   x = theURL(str(args.id))
   print 'Laster ned bok med ID: '+str(args.id)
@@ -134,7 +132,7 @@ if args.id:
     x.setLevel(int(args.level))
   if args.maxlevel:
     x.setMaxLevel(int(args.maxlevel))
-  #Laster Cover
+
   x.updateMaxColRow('C1')
   downloadPage('C1',x)
   x.updateMaxColRow('C2')
@@ -142,7 +140,6 @@ if args.id:
   x.updateMaxColRow('C3')
   downloadPage('C3',x)
 
-  #Laster Sider
   x.updateMaxColRow('0001')
   if args.start:
     pageCounter = int(args.start)
@@ -158,7 +155,6 @@ if args.id:
       print 'Ferdig med å laste ned alle sider.'
       exit()
     pageCounter+=1
-
-if len(sys.argv)==1:
+else:
     parser.print_help()
-    sys.exit(1)
+    exit()
