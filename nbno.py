@@ -39,12 +39,13 @@ class theURL():
     if (bokavis=='bok'):
       self.URLpart = 'http://www.nb.no/services/image/resolver?url_ver=geneza&urn=URN:NBN:no-nb_digibok_'
       self.URLsep1 = '_'
+      self.URLsep2 = ''
     elif (bokavis=='avis'):
       self.URLpart = 'http://www.nb.no/services/image/resolver?url_ver=geneza&urn=URN:NBN:no-nb_digavis_'
       self.URLsep1 = '-1_'
       self.URLsep2 = '_null'
     else:
-      print 'Du mangler å sette type!'
+      print 'Feil type!'
       exit()
 
   def newURL(self, side, col, row):
