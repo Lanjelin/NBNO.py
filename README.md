@@ -19,6 +19,7 @@ påkrevd argument:
 valgfrie argumenter:
   -h, --help      show this help message and exit
   --avis          Settes om det er en avis som lastes
+  --cover         Settes for å laste covers
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
   --level <int>   Sett Level
