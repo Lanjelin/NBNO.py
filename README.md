@@ -20,8 +20,12 @@ valgfrie argumenter:
   -h, --help      show this help message and exit
   --avis          Settes om det er en avis som lastes
   --cover         Settes for å laste covers
+  --url           Settes for å printe URL på hver del
+  --error         Settes for å printe HTTP feilkoder
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
   --level <int>   Sett Level
   --maxlevel <int>  Sett MaxLevel
+  --maxcol <int>  Sette max Col
+  --maxrow <int>  Sette max Row
 ```
