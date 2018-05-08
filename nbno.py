@@ -12,6 +12,8 @@ class theURL():
     self.maxcol = 0
     self.row = 0
     self.maxrow = 0
+    self.printUrl = False
+    self.printError = False
     self.resX = '9999'
     self.resY = '9999'
     self.tileWidth = '1024'
@@ -26,6 +28,18 @@ class theURL():
 
   def setMaxLevel(self, maxLevel):
     self.maxLevel = int(maxLevel)
+
+  def setMaxCol(self, maxCol):
+    self.maxcol = int(maxCol)
+
+  def setMaxRow(self, maxRow):
+    self.maxrow = int(maxRow)
+
+  def setPrintUrl(self):
+    self.printUrl = True
+
+  def setPrintError(self):
+    self.printError = True
 
   def updateURL(self):
     self.URL = self.URLpart+\
@@ -53,6 +67,8 @@ class theURL():
     self.col = int(col)
     self.row = int(row)
     self.updateURL()
+    if self.printUrl:
+      print self.URL
     return self.URL
 
   def updateMaxColRow(self, side):
@@ -64,6 +80,8 @@ class theURL():
         response = urllib2.urlopen(req)
       except urllib2.HTTPError as e:
         c-=1
+        if self.printError:
+          print e
         break
       else:
         c+=1
@@ -73,17 +91,19 @@ class theURL():
         req = urllib2.Request(xUrl, headers={ 'User-Agent': 'Mozilla/5.0' })
         response = urllib2.urlopen(req)
       except urllib2.HTTPError as e:
+        if self.printError:
+          print e
         r-=1
         break
       else:
         r+=1
     self.maxcol = int(c)
     self.maxrow = int(r)
-    return str(c)+str(r)
 
 def downloadPage(pageNum,bok):
   imageParts = []
   maxWidth, maxHeight = 0,0
+  numrow, numcol = 0,0
   r=0
   while (r<=bok.maxrow):
     c=0
@@ -93,14 +113,17 @@ def downloadPage(pageNum,bok):
         req = urllib2.Request(url, headers={ 'User-Agent': 'Mozilla/5.0' })
         response = urllib2.urlopen(req).read()
       except urllib2.HTTPError as e:
-        error = e #munch
+        if bok.printError:
+          print e
       else:
         img = Image.open(io.BytesIO(response))
         imageParts.append(img)
         if (r==0):
           maxWidth+=img.size[0]
+          numcol +=1
         if (c==0):
           maxHeight+=img.size[1]
+          numrow +=1
       c+=1
     r+=1
   if (len(imageParts)==0):
@@ -111,9 +134,10 @@ def downloadPage(pageNum,bok):
     newImg = Image.new('RGB', (maxWidth,maxHeight))
     r=0
     partCount=0
-    while (r<=bok.maxrow):
+    numrow,numcol = (numrow-1),(numcol-1)
+    while (r<=numrow):
       c=0
-      while (c<=bok.maxcol):
+      while (c<=numcol):
         newImg.paste(imageParts[partCount], ((c*sinWidth),(r*sinHeight)))
         partCount+=1
         c+=1
@@ -127,15 +151,31 @@ required = parser.add_argument_group('required arguments')
 required.add_argument('--id', metavar='<bokID>', help='IDen på boken som skal lastes ned', default=False)
 optional.add_argument('--avis', action='store_true', help='Settes om det er en avis som lastes', default=False)
 optional.add_argument('--cover', action='store_true', help='Settes for å laste covers', default=False)
+optional.add_argument('--url', action='store_true', help='Settes for å printe URL av hver del', default=False)
+optional.add_argument('--error', action='store_true', help='Settes for å printe feilkoder', default=False)
 optional.add_argument('--start', metavar='<int>', help='Sidetall å starte på', default=False)
 optional.add_argument('--stop', metavar='<int>', help='Sidetall å stoppe på', default=False)
 optional.add_argument('--level', metavar='<int>', help='Sett Level', default=False)
 optional.add_argument('--maxlevel', metavar='<int>', help='Sett MaxLevel', default=False)
+optional.add_argument('--maxcol', metavar='<int>', help='Sett MaxCol', default=False)
+optional.add_argument('--maxrow', metavar='<int>', help='Sett MaxRow', default=False)
 parser._action_groups.append(optional)
 args = parser.parse_args()
 
 if args.id:
   x = theURL(str(args.id))
+  if args.start:
+    pageCounter = int(args.start)
+  else:
+    pageCounter = 1
+  if args.stop:
+    stopPage = int(args.stop)
+  else:
+    stopPage = 9999
+  if args.url:
+    x.setPrintUrl()
+  if args.error:
+    x.setPrintError()
   if args.level:
     x.setLevel(int(args.level))
   if args.maxlevel:
@@ -148,7 +188,7 @@ if args.id:
   if args.avis:
     x.setType('avis')
     print 'Laster ned avis med ID: '+str(args.id)
-    x.updateMaxColRow('001')
+    x.updateMaxColRow(str(pageCounter).rjust(3, '0'))
   else:  
     x.setType('bok')
     print 'Laster ned bok med ID: '+str(args.id)
@@ -159,15 +199,11 @@ if args.id:
       downloadPage('C2',x)
       x.updateMaxColRow('C3')
       downloadPage('C3',x)
-    x.updateMaxColRow('0001')
-  if args.start:
-    pageCounter = int(args.start)
-  else:
-    pageCounter = 1
-  if args.stop:
-    stopPage = int(args.stop)
-  else:
-    stopPage = 9999
+    x.updateMaxColRow(str(pageCounter).rjust(4, '0'))
+  if args.maxcol:
+    x.setMaxCol(int(args.maxcol))
+  if args.maxrow:
+    x.setMaxRow(int(args.maxrow))
   while True:
     if args.avis:
       downloadPage(str(pageCounter).rjust(3, '0'),x)
