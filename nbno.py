@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-import io, urllib2, os, argparse
+import io, urllib2, os, argparse, re
 from PIL import Image
 
 class theURL():
@@ -116,14 +116,18 @@ def downloadPage(pageNum,bok):
         if bok.printError:
           print e
       else:
-        img = Image.open(io.BytesIO(response))
-        imageParts.append(img)
-        if (r==0):
-          maxWidth+=img.size[0]
-          numcol +=1
-        if (c==0):
-          maxHeight+=img.size[1]
-          numrow +=1
+        try:
+          img = Image.open(io.BytesIO(response))
+          imageParts.append(img)
+          if (r==0):
+            maxWidth+=img.size[0]
+            numcol +=1
+          if (c==0):
+            maxHeight+=img.size[1]
+            numrow +=1
+        except IOError as e:
+          if bok.printError:
+            print e
       c+=1
     r+=1
   if (len(imageParts)==0):
