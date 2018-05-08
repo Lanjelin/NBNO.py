@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-import io, urllib2, os, argparse, re
+import io, urllib2, os, argparse
 from PIL import Image
 
 class theURL():
