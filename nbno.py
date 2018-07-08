@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-import io, urllib2, os, argparse
+import io, urllib2, os, argparse, glob
 from PIL import Image
 
 class theURL():
@@ -132,7 +132,7 @@ def downloadPage(pageNum,bok):
     r+=1
   if (len(imageParts)==0):
     print 'Ferdig med å laste ned alle sider.'
-    exit()
+    return False
   else:
     sinWidth, sinHeight = imageParts[0].size
     newImg = Image.new('RGB', (maxWidth,maxHeight))
@@ -155,6 +155,8 @@ required = parser.add_argument_group('required arguments')
 required.add_argument('--id', metavar='<bokID>', help='IDen på boken som skal lastes ned', default=False)
 optional.add_argument('--avis', action='store_true', help='Settes om det er en avis som lastes', default=False)
 optional.add_argument('--cover', action='store_true', help='Settes for å laste covers', default=False)
+optional.add_argument('--pdf', action='store_true', help='Settes for å lage pdf av bildene som lastes', default=False)
+optional.add_argument('--f2pdf', action='store_true', help='Settes for å lage pdf av bilder i mappe', default=False)
 optional.add_argument('--url', action='store_true', help='Settes for å printe URL av hver del', default=False)
 optional.add_argument('--error', action='store_true', help='Settes for å printe feilkoder', default=False)
 optional.add_argument('--start', metavar='<int>', help='Sidetall å starte på', default=False)
@@ -210,13 +212,32 @@ if args.id:
     x.setMaxRow(int(args.maxrow))
   while True:
     if args.avis:
-      downloadPage(str(pageCounter).rjust(3, '0'),x)
+      down = downloadPage(str(pageCounter).rjust(3, '0'),x)
     else:  
-      downloadPage(str(pageCounter).rjust(4, '0'),x)
+      down = downloadPage(str(pageCounter).rjust(4, '0'),x)
+    if (down == False):
+      break
+    if args.pdf:
+      try:
+        Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0, append=True)
+      except:
+        if args.cover:
+          Image.open(folder+'C1.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0)
+          Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0, append=True)
+        else:
+       	  Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0)
     if (pageCounter == stopPage):
       print 'Ferdig med å laste ned alle sider.'
-      exit()
+      break
     pageCounter+=1
+  if args.f2pdf:
+    filelist = []
+    filelist.extend(glob.glob(os.path.join(str(args.id),('[0-9]'*4)+'.jpg')))
+    filelist = sorted(filelist)
+    Image.open(filelist[0]).save(str(args.id)+'.pdf', resolution=100.0)
+    for file in filelist[1:]:
+      Image.open(file).save(str(args.id)+'.pdf', resolution=100.0, append=True)
+  exit()
 else:
     parser.print_help()
     exit()
