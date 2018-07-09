@@ -149,6 +149,12 @@ def downloadPage(pageNum,bok):
     newImg.save(folder+str(pageNum)+'.jpg')
     print 'Lagret side '+pageNum+'.jpg'
 
+def savePDF(imgloc,book):
+  try:
+    Image.open(imgloc).save(book+'.pdf', 'PDF',resolution=100.0, append=True)
+  except:
+    Image.open(imgloc).save(book+'.pdf', 'PDF',resolution=100.0)
+
 parser = argparse.ArgumentParser()
 optional = parser._action_groups.pop()
 required = parser.add_argument_group('required arguments')
@@ -174,12 +180,10 @@ if args.id:
     filelist.extend(glob.glob(os.path.join(str(args.id),('[0-9]'*4)+'.jpg')))
     filelist = sorted(filelist)
     print 'Lager ' + str(args.id) + '.pdf'
-    Image.open(filelist[0]).save(str(args.id)+'.pdf', resolution=100.0)
-    print str(filelist[0]) + ' --> ' + str(args.id) + '.pdf'
-    for file in filelist[1:]:
-      Image.open(file).save(str(args.id)+'.pdf', resolution=100.0, append=True)
+    for file in filelist:
+      savePDF(file, str(args.id))
       print str(file) + ' --> ' + str(args.id) + '.pdf'
-    print 'Ferdig med å lage pdf.
+    print 'Ferdig med å lage pdf.'
     exit()
   x = theURL(str(args.id))
   if args.start:
@@ -211,12 +215,11 @@ if args.id:
     x.setType('bok')
     print 'Laster ned bok med ID: '+str(args.id)
     if args.cover:
-      x.updateMaxColRow('C1')
-      downloadPage('C1',x)
-      x.updateMaxColRow('C2')
-      downloadPage('C2',x)
-      x.updateMaxColRow('C3')
-      downloadPage('C3',x)
+      for c in ['C1','C2','C3']:
+        x.updateMaxColRow(c)
+        downloadPage(c,x)
+      if args.pdf:
+        savePDF(folder+'C1.jpg', str(args.id))
     x.updateMaxColRow(str(pageCounter).rjust(4, '0'))
   if args.maxcol:
     x.setMaxCol(int(args.maxcol))
@@ -230,14 +233,7 @@ if args.id:
     if (down == False):
       break
     if args.pdf:
-      try:
-        Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0, append=True)
-      except:
-        if args.cover:
-          Image.open(folder+'C1.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0)
-          Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0, append=True)
-        else:
-       	  Image.open(folder+x.side+'.jpg').save(str(args.id)+'.pdf', 'PDF',resolution=100.0)
+      savePDF(folder+x.side+'.jpg', str(args.id))
     if (pageCounter == stopPage):
       print 'Ferdig med å laste ned alle sider.'
       break
