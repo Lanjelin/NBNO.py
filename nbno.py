@@ -180,6 +180,8 @@ if args.id:
     filelist.extend(glob.glob(os.path.join(str(args.id),('[0-9]'*4)+'.jpg')))
     filelist = sorted(filelist)
     print 'Lager ' + str(args.id) + '.pdf'
+    if args.cover:
+      savePDF('.'+os.path.sep+str(args.id)+os.path.sep+'C1.jpg', str(args.id))
     for file in filelist:
       savePDF(file, str(args.id))
       print str(file) + ' --> ' + str(args.id) + '.pdf'
