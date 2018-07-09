@@ -179,6 +179,7 @@ if args.id:
     for file in filelist[1:]:
       Image.open(file).save(str(args.id)+'.pdf', resolution=100.0, append=True)
       print str(file) + ' --> ' + str(args.id) + '.pdf'
+    print 'Ferdig med å lage pdf.
     exit()
   x = theURL(str(args.id))
   if args.start:
