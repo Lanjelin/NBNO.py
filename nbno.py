@@ -169,6 +169,17 @@ parser._action_groups.append(optional)
 args = parser.parse_args()
 
 if args.id:
+  if args.f2pdf:
+    filelist = []
+    filelist.extend(glob.glob(os.path.join(str(args.id),('[0-9]'*4)+'.jpg')))
+    filelist = sorted(filelist)
+    print 'Lager ' + str(args.id) + '.pdf'
+    Image.open(filelist[0]).save(str(args.id)+'.pdf', resolution=100.0)
+    print str(filelist[0]) + ' --> ' + str(args.id) + '.pdf'
+    for file in filelist[1:]:
+      Image.open(file).save(str(args.id)+'.pdf', resolution=100.0, append=True)
+      print str(file) + ' --> ' + str(args.id) + '.pdf'
+    exit()
   x = theURL(str(args.id))
   if args.start:
     pageCounter = int(args.start)
@@ -230,13 +241,6 @@ if args.id:
       print 'Ferdig med å laste ned alle sider.'
       break
     pageCounter+=1
-  if args.f2pdf:
-    filelist = []
-    filelist.extend(glob.glob(os.path.join(str(args.id),('[0-9]'*4)+'.jpg')))
-    filelist = sorted(filelist)
-    Image.open(filelist[0]).save(str(args.id)+'.pdf', resolution=100.0)
-    for file in filelist[1:]:
-      Image.open(file).save(str(args.id)+'.pdf', resolution=100.0, append=True)
   exit()
 else:
     parser.print_help()
