@@ -160,22 +160,26 @@ def download_page(page_number, book):
         print('Ferdig med å laste ned alle sider.')
         return False
     else:
-        part_width, part_height = image_parts[0].size
-        full_page = Image.new('RGB', (max_width, max_height))
-        row_number = 0
-        part_counter = 0
-        row_counter, column_counter = (row_counter - 1), (column_counter - 1)
-        while (row_number <= row_counter):
-            column_number = 0
-            while (column_number <= column_counter):
-                full_page.paste(
-                    image_parts[part_counter],
-                    ((column_number * part_width), (row_number * part_height)))
-                part_counter += 1
-                column_number += 1
-            row_number += 1
-        full_page.save(f'{book.folder_path}{page_number}.jpg')
-        print(f'Lagret side {page_number}.jpg')
+        if (len(image_parts) == (column_number*row_number)):
+            part_width, part_height = image_parts[0].size
+            full_page = Image.new('RGB', (max_width, max_height))
+            row_number = 0
+            part_counter = 0
+            row_counter, column_counter = (row_counter - 1), (column_counter - 1)
+            while (row_number <= row_counter):
+                column_number = 0
+                while (column_number <= column_counter):
+                    full_page.paste(
+                        image_parts[part_counter],
+                        ((column_number * part_width), (row_number * part_height)))
+                    part_counter += 1
+                    column_number += 1
+                row_number += 1
+            full_page.save(f'{book.folder_path}{page_number}.jpg')
+            print(f'Lagret side {page_number}.jpg')
+        else:
+            print(f'Feilet å laste ned side {page_number}.jpg - prøver igjen.')
+            download_page(page_number, book)
 
 
 def save_pdf(image_location, pdf_name):
