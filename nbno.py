@@ -5,44 +5,39 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import argparse
+import json
 from PIL import Image
 from glob import glob
+from math import ceil
 
 
 class Book():
     """ Holder styr på all info om bildefiler til bok """
     def __init__(self, book_id):
         self.book_id = str(book_id)
+        self.book_paper = ''
         self.page_number = '0001'
-        self.level = 5
-        self.max_level = 5
         self.column_number = 0
-        self.max_column = 0
         self.row_number = 0
-        self.max_row = 0
         self.print_url = False
         self.print_error = False
-        self.x_max_resolution = '9999'
-        self.y_max_resolution = '9999'
-        self.tile_width = '1024'
-        self.tile_height = '1024'
+        self.tile_width = 1024
+        self.tile_height = 1024
+        self.api_url = 'https://api.nb.no/catalog/v1/iiif/URN:NBN:no-nb'
         self.image_url = ''
-        self.url_start_part = ''
+        self.resolver_url = ''
         self.url_seperator1 = ''
         self.url_seperator2 = ''
         self.folder_path = ''
+        self.page_data = {}
+        self.num_pages = 0
 
-    def set_level(self, level):
-        self.level = int(level)
+    def set_tile_sizes(self, width, height):
+        self.tile_width = width
+        self.tile_height = height
 
-    def set_max_level(self, max_level):
-        self.max_level = int(max_level)
-
-    def set_max_col(self, maxCol):
-        self.max_column = int(maxCol)
-
-    def set_max_row(self, maxRow):
-        self.max_row = int(maxRow)
+    def set_book_or_newspaper(self, book_paper):
+        self.book_paper = book_paper
 
     def set_to_print_url(self):
         self.print_url = True
@@ -53,73 +48,80 @@ class Book():
     def set_folder_path(self, folder_path):
         self.folder_path = folder_path
 
-    def update_url(self):
-        self.image_url = (f'{self.url_start_part}'
-                          f'{self.book_id}{self.url_seperator1}'
-                          f'{self.page_number}{self.url_seperator2}'
-                          f'&maxLevel={self.max_level}'
-                          f'&level={self.level}'
-                          f'&col={self.column_number}'
-                          f'&row={self.row_number}'
-                          f'&resX={self.x_max_resolution}'
-                          f'&resY={self.y_max_resolution}'
-                          f'&tileWidth={self.tile_width}'
-                          f'&tileHeight={self.tile_height}')
-
-    def set_book_or_newspaper(self, book_paper):
-        if (book_paper == 'bok'):
-            self.url_start_part = ('http://www.nb.no/services/image/resolver?'
-                                   'url_ver=geneza&urn=URN:NBN:no-nb_digibok_')
+    def get_url_seperators(self):
+        if (self.book_paper == 'digibok'):
             self.url_seperator1 = '_'
             self.url_seperator2 = ''
-        elif (book_paper == 'avis'):
-            self.url_start_part = ('http://www.nb.no/services/image/resolver?'
-                                   'url_ver=geneza&urn=URN:NBN:no-nb_digavis_')
-            self.url_seperator1 = '-1_'
-            self.url_seperator2 = '_null'
-        else:
-            print('Feil type!')
-            exit()
+        elif (self.book_paper == 'digavis'):
+            url_seperators1 = ['-1_', '-01_']
+            url_seperators2 = ['_null', '_seksjonsnavn']
+            for sep1, sep2 in zip(url_seperators1, url_seperators2):
+                json_url = (f'{self.resolver_url}_'
+                            f'{self.book_paper}_{self.book_id}'
+                            f'{sep1}001{sep2}/info.json')
+                try:
+                    req = urllib.request.Request(
+                        json_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    urllib.request.urlopen(req)
+                except urllib.error.HTTPError as error:
+                    if self.print_error:
+                        if error.code != 400:
+                            print(error)
+                else:
+                    self.url_seperator1 = sep1
+                    self.url_seperator2 = sep2
+                    break
 
-    def make_new_url(self, side, column, row):
+    def get_manifest(self):
+        manifest_url = (f'{self.api_url}_{self.book_paper}'
+                        f'_{self.book_id}/manifest')
+        try:
+            req = urllib.request.Request(manifest_url,
+                                         headers={'User-Agent': 'Mozilla/5.0'})
+            response = urllib.request.urlopen(req)
+            json_data = json.load(response)
+        except urllib.error.HTTPError as error:
+            if self.print_error:
+                print(error)
+        else:
+            for page in json_data['sequences'][0]['canvases']:
+                if (self.book_paper == 'digibok'):
+                    page_name = page['@id'].split('_')[-1]
+                elif (self.book_paper == 'digavis'):
+                    page_name = page['@id'].split('_')[-2]
+                page_dims = [page["width"], page["height"]]
+                self.page_data[page_name] = page_dims
+            if (self.book_paper == 'digibok'):
+                self.num_pages = len(self.page_data) - 5
+            elif (self.book_paper == 'digavis'):
+                self.num_pages = len(self.page_data)
+            self.resolver_url = json_data["thumbnail"]["@id"].split("_")[0]
+
+    def update_image_url(self):
+        self.image_url = (f'{self.resolver_url}_{self.book_paper}_'
+                          f'{self.book_id}{self.url_seperator1}'
+                          f'{self.page_number}{self.url_seperator2}/'
+                          f'{self.column_number*self.tile_width},'
+                          f'{self.row_number*self.tile_height},'
+                          f'{self.tile_width},{self.tile_height}'
+                          f'/full/0/native.jpg')
+        if self.print_url:
+            print(self.image_url)
+
+    def fetch_new_image_url(self, side, column, row):
         self.page_number = str(side)
         self.column_number = int(column)
         self.row_number = int(row)
-        self.update_url()
-        if self.print_url:
-            print(self.image_url)
+        self.update_image_url()
         return self.image_url
 
-    def update_max_column_row(self, side):
+    def update_column_row(self, side):
         column_number, row_number = 0, 0
-        while True:
-            part_url = self.make_new_url(side, column_number, '0')
-            try:
-                req = urllib.request.Request(
-                    part_url, headers={'User-Agent': 'Mozilla/5.0'})
-                response = urllib.request.urlopen(req)
-            except urllib.error.HTTPError as error:
-                column_number -= 1
-                if self.print_error:
-                    if error.code != 400:
-                        print(error)
-                break
-            else:
-                column_number += 1
-        while True:
-            part_url = self.make_new_url(side, '0', row_number)
-            try:
-                req = urllib.request.Request(
-                    part_url, headers={'User-Agent': 'Mozilla/5.0'})
-                response = urllib.request.urlopen(req)
-            except urllib.error.HTTPError as error:
-                if self.print_error:
-                    if error.code != 400:
-                        print(error)
-                row_number -= 1
-                break
-            else:
-                row_number += 1
+        if self.book_paper == 'digavis':
+            self.set_tile_sizes(self.page_data[side][0],
+                                self.page_data[side][1])
+        column_number = (ceil(self.page_data[side][0] / self.tile_width) - 1)
+        row_number = (ceil(self.page_data[side][1] / self.tile_height) - 1)
         self.max_column = int(column_number)
         self.max_row = int(row_number)
 
@@ -133,7 +135,9 @@ def download_page(page_number, book):
     while (row_number <= book.max_row):
         column_number = 0
         while (column_number <= book.max_column):
-            url = book.make_new_url(page_number, column_number, row_number)
+            url = book.fetch_new_image_url(page_number,
+                                           column_number,
+                                           row_number)
             try:
                 req = urllib.request.Request(
                     url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -165,13 +169,15 @@ def download_page(page_number, book):
             full_page = Image.new('RGB', (max_width, max_height))
             row_number = 0
             part_counter = 0
-            row_counter, column_counter = (row_counter - 1), (column_counter - 1)
+            row_counter = (row_counter - 1)
+            column_counter = (column_counter - 1)
             while (row_number <= row_counter):
                 column_number = 0
                 while (column_number <= column_counter):
                     full_page.paste(
                         image_parts[part_counter],
-                        ((column_number * part_width), (row_number * part_height)))
+                        ((column_number * part_width),
+                         (row_number * part_height)))
                     part_counter += 1
                     column_number += 1
                 row_number += 1
@@ -231,22 +237,6 @@ def main():
         '--stop', metavar='<int>',
         help='Sidetall å stoppe på',
         default=False)
-    optional.add_argument(
-        '--level', metavar='<int>',
-        help='Sett Level',
-        default=False)
-    optional.add_argument(
-        '--maxlevel', metavar='<int>',
-        help='Sett MaxLevel',
-        default=False)
-    optional.add_argument(
-        '--maxcol', metavar='<int>',
-        help='Sett MaxCol',
-        default=False)
-    optional.add_argument(
-        '--maxrow', metavar='<int>',
-        help='Sett MaxRow',
-        default=False)
     parser._action_groups.append(optional)
     args = parser.parse_args()
 
@@ -272,44 +262,40 @@ def main():
             page_counter = int(args.start)
         else:
             page_counter = 1
-        if args.stop:
-            stop_at_page = int(args.stop)
-        else:
-            stop_at_page = 9999
         if args.url:
             book.set_to_print_url()
         if args.error:
             book.set_to_print_errors()
-        if args.level:
-            book.set_level(int(args.level))
-        if args.maxlevel:
-            book.set_max_level(int(args.maxlevel))
         try:
             os.stat(book.folder_path)
-        except OSError as e:
+        except OSError:
             os.mkdir(book.folder_path)
         if args.avis:
-            book.set_book_or_newspaper('avis')
-            print(f'Laster ned avis med ID: {args.id}')
-            book.update_max_column_row(str(page_counter).rjust(3, '0'))
+            book.set_book_or_newspaper('digavis')
+            book.get_manifest()
+            book.get_url_seperators()
+            print(f'Laster ned avis med ID: {args.id}.')
         else:
-            book.set_book_or_newspaper('bok')
-            print(f'Laster ned bok med ID: {args.id}')
+            book.set_book_or_newspaper('digibok')
+            book.get_manifest()
+            book.get_url_seperators()
+            print(f'Laster ned bok med ID: {args.id}.')
             if args.cover:
                 for cover in ['C1', 'C2', 'C3']:
-                    book.update_max_column_row(cover)
+                    book.update_column_row(cover)
                     download_page(cover, book)
                 if args.pdf:
                     save_pdf(f'{book.folder_path}C1.jpg', str(args.id))
-            book.update_max_column_row(str(page_counter).rjust(4, '0'))
-        if args.maxcol:
-            book.set_max_col(int(args.maxcol))
-        if args.maxrow:
-            book.set_max_row(int(args.maxrow))
+        if args.stop:
+            stop_at_page = int(args.stop)
+        else:
+            stop_at_page = book.num_pages
         while True:
             if args.avis:
+                book.update_column_row(str(page_counter).rjust(3, '0'))
                 download = download_page(str(page_counter).rjust(3, '0'), book)
             else:
+                book.update_column_row(str(page_counter).rjust(4, '0'))
                 download = download_page(str(page_counter).rjust(4, '0'), book)
             if download is False:
                 break
