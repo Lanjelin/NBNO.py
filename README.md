@@ -10,7 +10,7 @@ Python 3 kan lastes ned fra https://www.python.org/downloads/ Pillow legges til 
 For Python 2.7 kan nbno27.py brukes, men Python 2.7 når end-of-life 1. Januar 2020.
 Denne versjonen av koden vil derfor ikke vedlikeholdes.
 
-For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere for så å kopiere tallrekken etter digibok_ i lenken som dukker opp.
+For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere tallrekken etter digibok_ i lenken som dukker opp.
 For aviser må både tekst og tall etter digavis_ kopieres med.
 ```
 bruk: nbno.py [-h] [--id <bokID>] [--avis] [--cover] [--pdf] [--f2pdf]
