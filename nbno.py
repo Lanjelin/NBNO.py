@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 import io
 import os
-import urllib.request
-import urllib.error
-import urllib.parse
 import argparse
-import json
+import requests
 from PIL import Image
 from glob import glob
 from math import ceil
@@ -31,6 +28,8 @@ class Book():
         self.folder_path = ''
         self.page_data = {}
         self.num_pages = 0
+        self.session = requests.session()
+        self.session.headers['User-Agent'] = 'Mozilla/5.0'
 
     def set_tile_sizes(self, width, height):
         self.tile_width = width
@@ -60,12 +59,11 @@ class Book():
                             f'{self.book_paper}_{self.book_id}'
                             f'{sep1}001{sep2}/info.json')
                 try:
-                    req = urllib.request.Request(
-                        json_url, headers={'User-Agent': 'Mozilla/5.0'})
-                    urllib.request.urlopen(req)
-                except urllib.error.HTTPError as error:
+                    response = self.session.get(manifest_url)
+                    response.raise_for_status()
+                except requests.exceptions.RequestException as error:
                     if self.print_error:
-                        if error.code != 400:
+                        if error.response.status_code != 400:
                             print(error)
                 else:
                     self.url_seperator1 = sep1
@@ -76,11 +74,10 @@ class Book():
         manifest_url = (f'{self.api_url}_{self.book_paper}'
                         f'_{self.book_id}/manifest')
         try:
-            req = urllib.request.Request(manifest_url,
-                                         headers={'User-Agent': 'Mozilla/5.0'})
-            response = urllib.request.urlopen(req)
-            json_data = json.load(response)
-        except urllib.error.HTTPError as error:
+            response = self.session.get(manifest_url)
+            response.raise_for_status()
+            json_data = response.json()
+        except requests.exceptions.RequestException as error:
             if self.print_error:
                 print(error)
         else:
@@ -139,15 +136,14 @@ def download_page(page_number, book):
                                            column_number,
                                            row_number)
             try:
-                req = urllib.request.Request(
-                    url, headers={'User-Agent': 'Mozilla/5.0'})
-                response = urllib.request.urlopen(req).read()
-            except urllib.error.HTTPError as error:
+                response = book.session.get(url)
+                response.raise_for_status()
+            except requests.exceptions.RequestException as error:
                 if book.print_error:
                     print(error)
             else:
                 try:
-                    img = Image.open(io.BytesIO(response))
+                    img = Image.open(io.BytesIO(response.content))
                     image_parts.append(img)
                     if (row_number == 0):
                         max_width += img.size[0]
