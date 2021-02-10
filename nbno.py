@@ -286,6 +286,10 @@ def main():
             stop_at_page = int(args.stop)
         else:
             stop_at_page = book.num_pages
+        if page_counter > stop_at_page:
+            print('Du har forsøkt å laste ned flere sider enn det eksisterer.')
+            print(f'Det finnes kun {book.num_pages} sider i denne boka.')
+            exit()
         while True:
             if args.avis:
                 book.update_column_row(str(page_counter).rjust(3, '0'))
