@@ -1,5 +1,5 @@
 # NBNO.py
-NB.no nedlaster
+Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
 
 For å kjøre denne koden trengs Python 3.7 eller nyere, og pillow.
