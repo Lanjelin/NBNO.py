@@ -69,6 +69,9 @@ class Book():
                     self.url_seperator1 = sep1
                     self.url_seperator2 = sep2
                     break
+        elif (self.book_paper == 'digitidsskrift'):
+            self.url_seperator1 = '_'
+            self.url_seperator2 = ''
 
     def get_manifest(self):
         manifest_url = (f'{self.api_url}_{self.book_paper}'
@@ -86,11 +89,15 @@ class Book():
                     page_name = page['@id'].split('_')[-1]
                 elif (self.book_paper == 'digavis'):
                     page_name = page['@id'].split('_')[-2]
+                elif (self.book_paper == 'digitidsskrift'):
+                    page_name = page['@id'].split('_')[-1]
                 page_dims = [page["width"], page["height"]]
                 self.page_data[page_name] = page_dims
             if (self.book_paper == 'digibok'):
                 self.num_pages = len(self.page_data) - 5
             elif (self.book_paper == 'digavis'):
+                self.num_pages = len(self.page_data)
+            elif (self.book_paper == 'digitidsskrift'):
                 self.num_pages = len(self.page_data)
             self.resolver_url = json_data["thumbnail"]["@id"].split("_")[0]
 
@@ -206,6 +213,10 @@ def main():
         help='Settes om det er en avis som lastes',
         default=False)
     optional.add_argument(
+        '--tidsskrift', action='store_true',
+        help='Settes om det er tidsskrift som lastes',
+        default=False)
+    optional.add_argument(
         '--cover', action='store_true',
         help='Settes for å laste covers',
         default=False)
@@ -271,6 +282,11 @@ def main():
             book.get_manifest()
             book.get_url_seperators()
             print(f'Laster ned avis med ID: {args.id}.')
+        elif args.tidsskrift:
+            book.set_book_or_newspaper('digitidsskrift')
+            book.get_manifest()
+            book.get_url_seperators()
+            print(f'Laster ned tidsskrift med ID: {args.id}.')
         else:
             book.set_book_or_newspaper('digibok')
             book.get_manifest()
@@ -294,6 +310,9 @@ def main():
             if args.avis:
                 book.update_column_row(str(page_counter).rjust(3, '0'))
                 download = download_page(str(page_counter).rjust(3, '0'), book)
+            elif args.tidsskrift:
+                book.update_column_row(str(page_counter).rjust(4, '0'))
+                download = download_page(str(page_counter).rjust(4, '0'), book)
             else:
                 book.update_column_row(str(page_counter).rjust(4, '0'))
                 download = download_page(str(page_counter).rjust(4, '0'), book)
