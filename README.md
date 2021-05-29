@@ -13,8 +13,8 @@ Denne versjonen av koden vil derfor ikke vedlikeholdes.
 For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere tallrekken etter digibok_ i lenken som dukker opp.
 For aviser må både tekst og tall etter digavis_ kopieres med.
 ```
-bruk: nbno.py [-h] [--id <bokID>] [--avis] [--cover] [--pdf] [--f2pdf]
-               [--url] [--error] [--start <int>] [--stop <int>]
+bruk: nbno.py [-h] [--id <bokID>] [--avis] [--tidsskrift] [--cover] [--pdf]
+              [--f2pdf] [--url] [--error] [--start <int>] [--stop <int>]
 
 påkrevd argument:
   --id <bokID>    IDen på boken som skal lastes ned
