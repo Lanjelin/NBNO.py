@@ -22,6 +22,7 @@ påkrevd argument:
 valgfrie argumenter:
   -h, --help      show this help message and exit
   --avis          Settes om det er en avis som lastes
+  --tidsskrift    Settes om det er tidsskrift som lastes
   --cover         Settes for å laste covers
   --pdf           Settes for å lage pdf av bildene som lastes
   --f2pdf         Settes for å lage pdf av bilder i mappe
