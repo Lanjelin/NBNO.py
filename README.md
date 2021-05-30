@@ -1,4 +1,4 @@
-# NBNO.py
+# NBNO.py v2
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
 
@@ -10,19 +10,27 @@ Python 3 kan lastes ned fra https://www.python.org/downloads/ Pillow legges til 
 For Python 2.7 kan nbno27.py brukes, men Python 2.7 når end-of-life 1. Januar 2020.
 Denne versjonen av koden vil derfor ikke vedlikeholdes.
 
-For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere tallrekken etter digibok_ i lenken som dukker opp.
-For aviser må både tekst og tall etter digavis_ kopieres med.
+For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc
+
+Følgende er støttet:
+ - Bøker (digibok)
+ - Aviser (digavis)
+ - Bilder (digifoto)
+ - Tidsskrift (digitidsskrift)
+ - Kart (digikart)
+ - Brev og Manuskripter (digimanus)
+ - Noter (digibok)
+ - Musikkmanuskripter (digimanus)
+ - Plakater (digifoto)
 ```
-bruk: nbno.py [-h] [--id <bokID>] [--avis] [--tidsskrift] [--cover] [--pdf]
-              [--f2pdf] [--url] [--error] [--start <int>] [--stop <int>]
+bruk: nbno.py [-h] [--id <bokID>] [--cover] [--pdf] [--f2pdf]
+              [--url] [--error] [--start <int>] [--stop <int>]
 
 påkrevd argument:
   --id <bokID>    IDen på boken som skal lastes ned
 
 valgfrie argumenter:
   -h, --help      show this help message and exit
-  --avis          Settes om det er en avis som lastes
-  --tidsskrift    Settes om det er tidsskrift som lastes
   --cover         Settes for å laste covers
   --pdf           Settes for å lage pdf av bildene som lastes
   --f2pdf         Settes for å lage pdf av bilder i mappe
