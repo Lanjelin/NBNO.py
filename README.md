@@ -23,11 +23,11 @@ Følgende er støttet:
  - Musikkmanuskripter (digimanus)
  - Plakater (digifoto)
 ```
-bruk: nbno.py [-h] [--id <bokID>] [--cover] [--pdf] [--f2pdf]
+bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf]
               [--url] [--error] [--start <int>] [--stop <int>]
 
 påkrevd argument:
-  --id <bokID>    IDen på boken som skal lastes ned
+  --id <ID>    IDen på innholdet som skal lastes ned
 
 valgfrie argumenter:
   -h, --help      show this help message and exit
