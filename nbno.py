@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import io
 import os
+import warnings
 import argparse
 import requests
 from PIL import Image
@@ -9,24 +10,21 @@ from math import ceil
 
 
 class Book():
-    """ Holder styr på all info om bildefiler til bok """
+    """ Holder styr på all info om bildefiler til bok/avis/mm. """
     def __init__(self, book_id):
         self.book_id = str(book_id)
-        self.book_paper = ''
-        self.page_number = '0001'
-        self.column_number = 0
-        self.row_number = 0
+        self.media_type = ''
+        self.current_page = '0001'
         self.print_url = False
         self.print_error = False
         self.tile_width = 1024
         self.tile_height = 1024
         self.api_url = 'https://api.nb.no/catalog/v1/iiif/URN:NBN:no-nb'
         self.image_url = ''
-        self.resolver_url = ''
-        self.url_seperator1 = ''
-        self.url_seperator2 = ''
         self.folder_path = ''
+        self.page_names = []
         self.page_data = {}
+        self.page_url = {}
         self.num_pages = 0
         self.session = requests.session()
         self.session.headers['User-Agent'] = 'Mozilla/5.0'
@@ -35,8 +33,8 @@ class Book():
         self.tile_width = width
         self.tile_height = height
 
-    def set_book_or_newspaper(self, book_paper):
-        self.book_paper = book_paper
+    def set_media_type(self, media_type):
+        self.media_type = media_type
 
     def set_to_print_url(self):
         self.print_url = True
@@ -47,34 +45,8 @@ class Book():
     def set_folder_path(self, folder_path):
         self.folder_path = folder_path
 
-    def get_url_seperators(self):
-        if (self.book_paper == 'digibok'):
-            self.url_seperator1 = '_'
-            self.url_seperator2 = ''
-        elif (self.book_paper == 'digavis'):
-            url_seperators1 = ['-1_', '-01_']
-            url_seperators2 = ['_null', '_seksjonsnavn']
-            for sep1, sep2 in zip(url_seperators1, url_seperators2):
-                json_url = (f'{self.resolver_url}_'
-                            f'{self.book_paper}_{self.book_id}'
-                            f'{sep1}001{sep2}/info.json')
-                try:
-                    response = self.session.get(manifest_url)
-                    response.raise_for_status()
-                except requests.exceptions.RequestException as error:
-                    if self.print_error:
-                        if error.response.status_code != 400:
-                            print(error)
-                else:
-                    self.url_seperator1 = sep1
-                    self.url_seperator2 = sep2
-                    break
-        elif (self.book_paper == 'digitidsskrift'):
-            self.url_seperator1 = '_'
-            self.url_seperator2 = ''
-
     def get_manifest(self):
-        manifest_url = (f'{self.api_url}_{self.book_paper}'
+        manifest_url = (f'{self.api_url}_{self.media_type}'
                         f'_{self.book_id}/manifest')
         try:
             response = self.session.get(manifest_url)
@@ -85,45 +57,40 @@ class Book():
                 print(error)
         else:
             for page in json_data['sequences'][0]['canvases']:
-                if (self.book_paper == 'digibok'):
-                    page_name = page['@id'].split('_')[-1]
-                elif (self.book_paper == 'digavis'):
+                if (self.media_type == 'digavis'):
                     page_name = page['@id'].split('_')[-2]
-                elif (self.book_paper == 'digitidsskrift'):
+                elif (self.media_type == 'digikart'):
+                    page_name = page['@id'].split('_')[-2] + '_' + \
+                                page['@id'].split('_')[-1]
+                else:
                     page_name = page['@id'].split('_')[-1]
                 page_dims = [page["width"], page["height"]]
+                self.page_names.append(page_name)
                 self.page_data[page_name] = page_dims
-            if (self.book_paper == 'digibok'):
+                self.page_url[page_name] = page['images'][0]['resource']\
+                                               ['service']['@id']
+            if (self.media_type == 'digibok'):
                 self.num_pages = len(self.page_data) - 5
-            elif (self.book_paper == 'digavis'):
+            else:
                 self.num_pages = len(self.page_data)
-            elif (self.book_paper == 'digitidsskrift'):
-                self.num_pages = len(self.page_data)
-            self.resolver_url = json_data["thumbnail"]["@id"].split("_")[0]
 
-    def update_image_url(self):
-        self.image_url = (f'{self.resolver_url}_{self.book_paper}_'
-                          f'{self.book_id}{self.url_seperator1}'
-                          f'{self.page_number}{self.url_seperator2}/'
-                          f'{self.column_number*self.tile_width},'
-                          f'{self.row_number*self.tile_height},'
+    def fetch_new_image_url(self, side, column, row):
+        self.current_page = str(side)
+        self.image_url = (f'{self.page_url[side]}/'
+                          f'{int(column)*self.tile_width},'
+                          f'{int(row)*self.tile_height},'
                           f'{self.tile_width},{self.tile_height}'
                           f'/full/0/native.jpg')
         if self.print_url:
             print(self.image_url)
-
-    def fetch_new_image_url(self, side, column, row):
-        self.page_number = str(side)
-        self.column_number = int(column)
-        self.row_number = int(row)
-        self.update_image_url()
         return self.image_url
 
     def update_column_row(self, side):
         column_number, row_number = 0, 0
-        if self.book_paper == 'digavis':
-            self.set_tile_sizes(self.page_data[side][0],
-                                self.page_data[side][1])
+        if self.media_type == 'digibok' or self.media_type == 'digitidsskrift':
+            self.set_tile_sizes(1024, 1024)
+        else:
+            self.set_tile_sizes(4096, 4096)
         column_number = (ceil(self.page_data[side][0] / self.tile_width) - 1)
         row_number = (ceil(self.page_data[side][1] / self.tile_height) - 1)
         self.max_column = int(column_number)
@@ -206,15 +173,7 @@ def main():
     required = parser.add_argument_group('required arguments')
     required.add_argument(
         '--id', metavar='<bokID>',
-        help='IDen på boken som skal lastes ned',
-        default=False)
-    optional.add_argument(
-        '--avis', action='store_true',
-        help='Settes om det er en avis som lastes',
-        default=False)
-    optional.add_argument(
-        '--tidsskrift', action='store_true',
-        help='Settes om det er tidsskrift som lastes',
+        help='IDen på mediet som skal lastes ned',
         default=False)
     optional.add_argument(
         '--cover', action='store_true',
@@ -248,23 +207,30 @@ def main():
     args = parser.parse_args()
 
     if args.id:
-        book = Book(str(args.id))
-        book.set_folder_path('.'+os.path.sep+str(args.id)+os.path.sep)
+        media_type = 'dig'+args.id.split('dig')[1].split('_')[0]
+        media_id = str(args.id.split(media_type+'_')[1])
+        book = Book(media_id)
+        book.set_media_type(media_type)
+        book.set_folder_path('.'+os.path.sep+str(media_id)+os.path.sep)
         if args.f2pdf:
             filelist = []
             filelist.extend(
-                glob(os.path.join(str(args.id), ('[0-9]'*4)+'.jpg')))
+                glob(os.path.join(str(media_id), ('[0-9]'*4)+'.jpg')))
             filelist = sorted(filelist)
-            print(f'Lager {args.id}.pdf')
+            print(f'Lager {media_id}.pdf')
             if args.cover:
                 save_pdf(
-                    f'{book.folder_path}C1.jpg', str(args.id))
-                print(f'{args.id}{os.path.sep}C1.jpg --> {args.id}.pdf')
+                    f'{book.folder_path}C1.jpg', str(media_id))
+                print(f'{media_id}{os.path.sep}C1.jpg --> {media_id}.pdf')
             for file in filelist:
-                save_pdf(file, str(args.id))
-                print(f'{file} --> {args.id}.pdf')
+                save_pdf(file, str(media_id))
+                print(f'{file} --> {media_id}.pdf')
             print('Ferdig med å lage pdf.')
             exit()
+        if args.pdf:
+            make_pdf = True
+        else:
+            make_pdf = False
         if args.start:
             page_counter = int(args.start)
         else:
@@ -277,27 +243,7 @@ def main():
             os.stat(book.folder_path)
         except OSError:
             os.mkdir(book.folder_path)
-        if args.avis:
-            book.set_book_or_newspaper('digavis')
-            book.get_manifest()
-            book.get_url_seperators()
-            print(f'Laster ned avis med ID: {args.id}.')
-        elif args.tidsskrift:
-            book.set_book_or_newspaper('digitidsskrift')
-            book.get_manifest()
-            book.get_url_seperators()
-            print(f'Laster ned tidsskrift med ID: {args.id}.')
-        else:
-            book.set_book_or_newspaper('digibok')
-            book.get_manifest()
-            book.get_url_seperators()
-            print(f'Laster ned bok med ID: {args.id}.')
-            if args.cover:
-                for cover in ['C1', 'C2', 'C3']:
-                    book.update_column_row(cover)
-                    download_page(cover, book)
-                if args.pdf:
-                    save_pdf(f'{book.folder_path}C1.jpg', str(args.id))
+        book.get_manifest()
         if args.stop:
             stop_at_page = int(args.stop)
         else:
@@ -306,21 +252,38 @@ def main():
             print('Du har forsøkt å laste ned flere sider enn det eksisterer.')
             print(f'Det finnes kun {book.num_pages} sider i denne boka.')
             exit()
+        print(f'Laster ned {media_type} med ID: {media_id}.')
         while True:
-            if args.avis:
-                book.update_column_row(str(page_counter).rjust(3, '0'))
-                download = download_page(str(page_counter).rjust(3, '0'), book)
-            elif args.tidsskrift:
+            if media_type == 'digavis' or \
+               media_type == 'digikart' or \
+               media_type == 'digifoto' or \
+               media_type == 'digimanus' or \
+               media_type == 'digitidsskrift':
+                book.update_column_row(book.page_names[page_counter-1])
+                download = download_page(book.page_names[page_counter-1], book)
+            elif media_type == 'digibok':
+                if args.cover:
+                    for cover in ['C1', 'C2', 'C3']:
+                        book.update_column_row(cover)
+                        download_page(cover, book)
+                    if args.pdf:
+                        save_pdf(f'{book.folder_path}C1.jpg', str(media_id))
                 book.update_column_row(str(page_counter).rjust(4, '0'))
                 download = download_page(str(page_counter).rjust(4, '0'), book)
             else:
-                book.update_column_row(str(page_counter).rjust(4, '0'))
-                download = download_page(str(page_counter).rjust(4, '0'), book)
+                print(f'Noe gikk galt, du prøvde å laste ned {media_type}, '
+                      f'med id {media_id}, er dette korrekt?')
             if download is False:
                 break
-            if args.pdf:
-                save_pdf(
-                    f'{book.folder_path}{book.page_number}.jpg', str(args.id))
+            if make_pdf:
+                warnings.simplefilter('error', Image.DecompressionBombWarning)
+                try:
+                    save_pdf(
+                        f'{book.folder_path}'
+                        f'{book.current_page}.jpg', str(media_id))
+                except Exception as e:
+                    print(f'For store bildefiler til å lage PDF, beklager.')
+                    make_pdf = False
             if (page_counter == stop_at_page):
                 print('Ferdig med å laste ned alle sider.')
                 break
