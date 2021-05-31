@@ -7,9 +7,6 @@ For å sjekke versjon av python, kjør **python --version**, eventuelt **python3
 
 Python 3 kan lastes ned fra https://www.python.org/downloads/ Pillow legges til ved å kjøre **pip install "pillow>6.0"** eller **easy_install "pillow>6.0"** etter python er installert (Husk å få med at Python skal oppdatere Path).
 
-For Python 2.7 kan nbno27.py brukes, men Python 2.7 når end-of-life 1. Januar 2020.
-Denne versjonen av koden vil derfor ikke vedlikeholdes.
-
 For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc
 
 Følgende er støttet:
