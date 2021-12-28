@@ -19,6 +19,7 @@ Følgende er støttet:
  - Noter (digibok)
  - Musikkmanuskripter (digimanus)
  - Plakater (digifoto)
+ - Programrapport (digiprogramrapport)
 ```
 bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf]
               [--url] [--error] [--start <int>] [--stop <int>]
