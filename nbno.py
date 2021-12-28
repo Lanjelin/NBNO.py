@@ -261,7 +261,8 @@ def main():
                media_type == 'digitidsskrift':
                 book.update_column_row(book.page_names[page_counter-1])
                 download = download_page(book.page_names[page_counter-1], book)
-            elif media_type == 'digibok':
+            elif media_type == 'digibok' or \
+                 media_type == 'digiprogramrapport':
                 if args.cover:
                     for cover in ['C1', 'C2', 'C3']:
                         book.update_column_row(cover)
