@@ -1,13 +1,17 @@
-# NBNO.py v2
+# NBNO.py
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
 
-For å kjøre denne koden trengs Python 3.7 eller nyere, og pillow.
-For å sjekke versjon av python, kjør **python --version**, eventuelt **python3 --version** fra kommandolinjen.
+For å kjøre denne koden trengs Python 3.7 eller nyere, pillow og requests.
 
-Python 3 kan lastes ned fra https://www.python.org/downloads/ Pillow legges til ved å kjøre **pip install "pillow>6.0"** eller **easy_install "pillow>6.0"** etter python er installert (Husk å få med at Python skal oppdatere Path).
+Linux og Mac kommer normalt med python installert.
+For Windows, last ned Python fra [python.org](https://www.python.org/downloads/), få med 'Add Python 3.xx to PATH'
 
-For å kjøre scriptet er kommandoen rimelig enkel, det eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc
+For å sjekke versjon av python, kjør `python --version`(Windows), `python3 --version`(Mac/Linux), fra kommandolinjen.
+
+For å installere pillow og requests, kjør `python3 -m pip install -r requirements.txt` fra samme mappen de nedlastede filene herfra ligger.
+
+Eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc --> `python3 nbno.py --id digitidsskrift_202101..etc`
 
 Følgende er støttet:
  - Bøker (digibok)
