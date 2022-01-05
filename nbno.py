@@ -185,7 +185,7 @@ def main():
         default=False)
     optional.add_argument(
         '--f2pdf', action='store_true',
-        help='Settes for å lage pdf av bilder i mappe',
+        help='Settes for å lage pdf av bilder i eksisterende mappe',
         default=False)
     optional.add_argument(
         '--url', action='store_true',
