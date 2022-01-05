@@ -35,7 +35,7 @@ valgfrie argumenter:
   -h, --help      show this help message and exit
   --cover         Settes for å laste covers
   --pdf           Settes for å lage pdf av bildene som lastes
-  --f2pdf         Settes for å lage pdf av bilder i mappe
+  --f2pdf         Settes for å lage pdf av bilder i eksisterende mappe
   --url           Settes for å printe URL på hver del
   --error         Settes for å printe HTTP feilkoder
   --start <int>   Sidetall å starte på
