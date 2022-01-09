@@ -27,8 +27,8 @@ Følgende er støttet:
  - Plakater (digifoto)
  - Programrapport (digiprogramrapport)
 ```
-bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf]
-              [--url] [--error] [--start <int>] [--stop <int>]
+bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] 
+              [--error] [--resize <int>] [--start <int>] [--stop <int>]
 
 påkrevd argument:
   --id <ID>    IDen på innholdet som skal lastes ned
