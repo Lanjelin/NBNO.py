@@ -123,6 +123,10 @@ class Book:
         self.covers = True
 
     def download(self):
+        try:
+            os.stat(book.folder_path)
+        except OSError:
+            os.mkdir(book.folder_path)
         imagelist = self.page_names
         if self.covers:
             for cover in ["I3", "I1", "C3", "C2", "C1"]:
@@ -318,10 +322,6 @@ def main():
             book.set_to_print_url()
         if args.error:
             book.set_to_print_errors()
-        try:
-            os.stat(book.folder_path)
-        except OSError:
-            os.mkdir(book.folder_path)
         if args.resize:
             book.set_resize(int(args.resize))
         if args.start:
