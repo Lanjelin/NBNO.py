@@ -1,4 +1,6 @@
 # NBNO.py
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
 
@@ -38,6 +40,7 @@ valgfrie argumenter:
   --f2pdf         Settes for å lage pdf av bilder i eksisterende mappe
   --url           Settes for å printe URL på hver del
   --error         Settes for å printe HTTP feilkoder
+  --resize <int>  Prosent av originalstørrelse på bilder
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
 ```
