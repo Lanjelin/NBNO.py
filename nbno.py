@@ -124,9 +124,9 @@ class Book:
 
     def download(self):
         try:
-            os.stat(book.folder_path)
+            os.stat(self.folder_path)
         except OSError:
-            os.mkdir(book.folder_path)
+            os.mkdir(self.folder_path)
         imagelist = self.page_names
         if self.covers:
             for cover in ["I3", "I1", "C3", "C2", "C1"]:
