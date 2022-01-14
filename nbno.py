@@ -1,12 +1,18 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import io
 import os
 import warnings
 import argparse
-import requests
 from PIL import Image
 from glob import glob
 from math import ceil
+import multiprocessing
+from requests import session
+import concurrent.futures as cf
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+from requests.exceptions import RequestException
 
 
 class Book:
@@ -16,7 +22,9 @@ class Book:
         self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
         self.media_id = digimedie.split(self.media_type + "_")[1]
         self.current_page = "0001"
+        self.max_threads = multiprocessing.cpu_count() * 4
         self.covers = False
+        self.verbose = False
         self.print_url = False
         self.print_error = False
         self.tile_width = 1024
@@ -30,8 +38,11 @@ class Book:
         self.page_url = {}
         self.num_pages = 0
         self.resize = 0
-        self.session = requests.session()
+        self.session = session()
         self.session.headers["User-Agent"] = "Mozilla/5.0"
+        self.adapter = HTTPAdapter(max_retries=(Retry(total=5, backoff_factor=0.5)))
+        self.session.mount("https://", self.adapter)
+        self.session.mount("http://", self.adapter)
         self.set_folder_path("." + os.path.sep + str(self.media_id) + os.path.sep)
         self.get_manifest()
 
@@ -44,6 +55,9 @@ class Book:
 
     def set_to_print_errors(self):
         self.print_error = True
+
+    def verbose_print(self):
+        self.verbose = True
 
     def set_folder_path(self, folder_path):
         self.folder_path = folder_path
@@ -71,7 +85,7 @@ class Book:
             response = self.session.get(manifest_url)
             response.raise_for_status()
             json_data = response.json()
-        except requests.exceptions.RequestException as error:
+        except RequestException as error:
             if self.print_error:
                 print(error)
         else:
@@ -135,11 +149,33 @@ class Book:
         if len(self.page_names) == 0:
             return False
         else:
-            for page in imagelist:
-                download = self.download_page(page)
-                if not download:
-                    break
-            return download
+            with cf.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+                future_download = {
+                    executor.submit(self.download_page, page): page
+                    for page in imagelist
+                }
+                progress = 0
+                print("")
+                for future in cf.as_completed(future_download):
+                    download = future.result()
+                    if not download[0]:
+                        if download[1] == 403:
+                            print(f"HTTP 403 Forbidden: Får ikke tilgang til boken.")
+                            print(f"Fra nb.nb   -   {self.tilgang}.")
+                        elif download[1] == 408:
+                            print(f"Connection Timeout ved forsøk på å laste sider.")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    else:
+                        progress += 1
+                        if not self.verbose:
+                            print(
+                                f"{' '*5}Lagret {progress} av {len(imagelist)} sider.",
+                                end="\r",
+                            )
+            if self.verbose:
+                print(f"\n{' '*5}Lagret {progress} av {len(imagelist)} sider.")
+            return download[0]
 
     def download_page(self, page_number):
         """Laster ned og setter sammen bildedeler for side av boken"""
@@ -154,12 +190,18 @@ class Book:
             while column_number <= self.max_column:
                 url = self.fetch_new_image_url(page_number, column_number, row_number)
                 try:
-                    response = self.session.get(url)
+                    response = self.session.get(url, timeout=10)
                     response.raise_for_status()
-                except requests.exceptions.RequestException as error:
-                    if response.status_code == 403:
-                        HTTPerror = 403
+                except RequestException as error:
+                    try:
+                        response
+                    except:
+                        HTTPerror = 408
                         break
+                    else:
+                        if response.status_code == 403:
+                            HTTPerror = 403
+                            break
                     if self.print_error:
                         print(error)
                 else:
@@ -180,11 +222,11 @@ class Book:
             if HTTPerror != 0:
                 break
         if HTTPerror == 403:
-            print(f"HTTP 403 Forbidden: Får ikke tilgang til boken.")
-            print(f"Fra nb.nb   -   {self.tilgang}.")
-            return False
+            return False, 403
+        elif HTTPerror == 408:
+            return False, 408
         elif not len(image_parts):
-            return False
+            return False, 200
         else:
             if len(image_parts) == (column_number * row_number):
                 part_width, part_height = image_parts[0].size
@@ -208,8 +250,9 @@ class Book:
                         [int(self.resize * s) for s in full_page.size]
                     )
                 full_page.save(f"{self.folder_path}{page_number}.jpg")
-                print(f"Lagret side {page_number}.jpg")
-                return True
+                if self.verbose:
+                    print(f"{' '*5}Lagret side {page_number}.jpg")
+                return True, 200
             else:
                 print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
                 self.download_page(page_number)
@@ -228,15 +271,17 @@ class Book:
                 Image.open(image_path).save(
                     self.media_id + ".pdf", "PDF", resolution=100.0, append=True
                 )
-                print(f"{image}.jpg --> {self.media_id}.pdf")
+                print(f"{' '*5}{image}.jpg --> {self.media_id}.pdf", end="\r")
             except OSError:
                 Image.open(image_path).save(
                     self.media_id + ".pdf", "PDF", resolution=100.0
                 )
-                print(f"{image}.jpg --> {self.media_id}.pdf")
+                print(f"{' '*5}{image}.jpg --> {self.media_id}.pdf", end="\r")
             except Exception:
                 print(f"For store bildefiler til å lage PDF, beklager.")
                 return False
+            if self.verbose:
+                print("")
         return True
 
 
@@ -287,6 +332,12 @@ def main():
         default=False,
     )
     optional.add_argument(
+        "--v",
+        action="store_true",
+        help="Settes for å printe mer info",
+        default=False,
+    )
+    optional.add_argument(
         "--resize",
         metavar="<int>",
         help="Prosent av originalstørrelse på bilder",
@@ -309,19 +360,25 @@ def main():
             filelist = []
             filelist.extend(glob(os.path.join(str(media_id), ("[0-9]" * 4) + ".jpg")))
             filelist = sorted(filelist)
-            print(f"Lager {media_id}.pdf")
+            print(f"Lager {media_id}.pdf\n")
             if args.cover:
                 filelist = [f"{media_id}/C1.jpg", *filelist, f"{media_id}/C3.jpg"]
             for file in filelist:
                 f2pdf(file, str(media_id))
-                print(f"{file.split(os.path.sep)[1]} --> {media_id}.pdf")
-            print("Ferdig med å lage pdf.")
+                print(
+                    f"{' '*5}{file.split(os.path.sep)[1]} --> {media_id}.pdf", end="\r"
+                )
+                if args.v:
+                    print("")
+            print("\n\nFerdig med å lage pdf.")
             exit()
         book = Book(args.id)
         if args.url:
             book.set_to_print_url()
         if args.error:
             book.set_to_print_errors()
+        if args.v:
+            book.verbose_print()
         if args.resize:
             book.set_resize(int(args.resize))
         if args.start:
@@ -339,17 +396,17 @@ def main():
         download = book.download()
         if download == False:
             print(
-                f"Noe gikk galt, du prøvde å laste ned {book.media_type}, "
+                f"\nNoe gikk galt, du prøvde å laste ned {book.media_type}, "
                 f"med id {book.media_id}, er dette korrekt?"
             )
             exit()
         else:
-            print("Ferdig med å laste ned alle sider.")
+            print(f"\n{' '*5}Ferdig med å laste ned alle sider.\n")
         if args.pdf:
-            print(f"\nLager {book.media_id}.pdf")
+            print(f"{' '*5}Lager {book.media_id}.pdf")
             savepdf = book.make_pdf()
             if savepdf:
-                print("Ferdig med å lage pdf.")
+                print(f"\n{' '*5}Ferdig med å lage pdf.\n")
         exit()
     else:
         parser.print_help()

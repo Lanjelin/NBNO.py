@@ -27,8 +27,8 @@ Følgende er støttet:
  - Plakater (digifoto)
  - Programrapport (digiprogramrapport)
 ```
-bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] 
-              [--error] [--resize <int>] [--start <int>] [--stop <int>]
+bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] [--error] 
+              [--v] [--resize <int>] [--start <int>] [--stop <int>]
 
 påkrevd argument:
   --id <ID>    IDen på innholdet som skal lastes ned
@@ -40,6 +40,7 @@ valgfrie argumenter:
   --f2pdf         Settes for å lage pdf av bilder i eksisterende mappe
   --url           Settes for å printe URL på hver del
   --error         Settes for å printe HTTP feilkoder
+  --v             Settes for å printe mer info
   --resize <int>  Prosent av originalstørrelse på bilder
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
