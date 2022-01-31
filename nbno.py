@@ -19,7 +19,10 @@ class Book:
     """Holder styr på all info om bildefiler til bok/avis/mm."""
 
     def __init__(self, digimedie):
-        self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
+        if digimedie.find("pliktmonografi") > -1:
+            self.media_type = "pliktmonografi"
+        else:
+            self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
         self.media_id = digimedie.split(self.media_type + "_")[1]
         self.current_page = "0001"
         self.max_threads = multiprocessing.cpu_count() * 4
@@ -33,6 +36,7 @@ class Book:
         self.tilgang = ""
         self.image_url = ""
         self.folder_path = ""
+        self.existing_images = []
         self.page_names = []
         self.page_data = {}
         self.page_url = {}
@@ -61,6 +65,16 @@ class Book:
 
     def set_folder_path(self, folder_path):
         self.folder_path = folder_path
+        self.find_existing_files()
+
+    def find_existing_files(self):
+        filelist = []
+        filelist.extend(glob(os.path.join(f"{self.folder_path}*.jpg")))
+        if filelist:
+            for file in filelist:
+                self.existing_images.extend(
+                    [file.split(".jpg")[0].split(os.path.sep)[2]]
+                )
 
     def set_resize(self, size):
         self.resize = int(size) / 100
@@ -86,8 +100,7 @@ class Book:
             response.raise_for_status()
             json_data = response.json()
         except RequestException as error:
-            if self.print_error:
-                print(error)
+            print(error)
         else:
             for page in json_data["sequences"][0]["canvases"]:
                 if self.media_type == "digavis":
@@ -130,8 +143,7 @@ class Book:
             self.set_tile_sizes(4096, 4096)
         column_number = ceil(self.page_data[side][0] / self.tile_width) - 1
         row_number = ceil(self.page_data[side][1] / self.tile_height) - 1
-        self.max_column = int(column_number)
-        self.max_row = int(row_number)
+        return (int(column_number), int(row_number))
 
     def download_covers(self):
         self.covers = True
@@ -146,7 +158,14 @@ class Book:
             for cover in ["I3", "I1", "C3", "C2", "C1"]:
                 if cover in self.page_data:
                     imagelist = [cover, *imagelist]
-        if len(self.page_names) == 0:
+        if self.existing_images:
+            counter = 0
+            for image in self.existing_images:
+                if image in imagelist:
+                    counter += 1
+                    imagelist.remove(image)
+            print(f"Hopper over {counter} eksisterende sider.")
+        if len(imagelist) == 0:
             return False
         else:
             with cf.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
@@ -170,24 +189,24 @@ class Book:
                         progress += 1
                         if not self.verbose:
                             print(
-                                f"{' '*5}Lagret {progress} av {len(imagelist)} sider.",
+                                f"{' '*5}Lagrer side {progress} av {len(imagelist)}.",
                                 end="\r",
                             )
             if self.verbose:
-                print(f"\n{' '*5}Lagret {progress} av {len(imagelist)} sider.")
+                print(f"\n{' '*5}Lagrer side {progress} av {len(imagelist)}.")
             return download[0]
 
     def download_page(self, page_number):
         """Laster ned og setter sammen bildedeler for side av boken"""
-        self.update_column_row(page_number)
+        max_column, max_row = self.update_column_row(page_number)
         image_parts = []
         max_width, max_height = 0, 0
         row_counter, column_counter = 0, 0
         row_number = 0
         HTTPerror = 0
-        while row_number <= self.max_row:
+        while row_number <= max_row:
             column_number = 0
-            while column_number <= self.max_column:
+            while column_number <= max_column:
                 url = self.fetch_new_image_url(page_number, column_number, row_number)
                 try:
                     response = self.session.get(url, timeout=10)
@@ -356,9 +375,12 @@ def main():
         if args.f2pdf:
             media_type = "dig" + args.id.split("dig")[1].split("_")[0]
             media_id = str(args.id.split(media_type + "_")[1])
-            folder_path = "." + os.path.sep + str(media_id) + os.path.sep
             filelist = []
             filelist.extend(glob(os.path.join(str(media_id), ("[0-9]" * 4) + ".jpg")))
+            if not filelist:
+                filelist.extend(
+                    glob(os.path.join(str(media_id), ("[0-9]" * 3) + ".jpg"))
+                )
             filelist = sorted(filelist)
             print(f"Lager {media_id}.pdf\n")
             if args.cover:
