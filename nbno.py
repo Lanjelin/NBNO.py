@@ -273,8 +273,12 @@ class Book:
                     print(f"{' '*5}Lagret side {page_number}.jpg")
                 return True, 200
             else:
-                print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
-                self.download_page(page_number)
+                if page_number in ["I3", "I1", "C3", "C2", "C1"]:
+                    print(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
+                    return True, 200
+                else:
+                    print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
+                    return self.download_page(page_number)
 
     def make_pdf(self):
         warnings.simplefilter("error", Image.DecompressionBombWarning)
