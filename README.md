@@ -1,5 +1,5 @@
 # NBNO.py
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Join the chat at https://gitter.im/Lanjelin/NBNO.py](https://badges.gitter.im/Lanjelin/NBNO.py.svg)](https://gitter.im/Lanjelin/NBNO.py?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
