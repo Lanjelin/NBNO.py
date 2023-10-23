@@ -6,7 +6,7 @@ Dette er et Python script som laster ned bøker og annet media fra Nasjonalbibli
 ### Kjøring i Docker
 Bind en lokal mappe til `/data` for å få tilgang til filer som lastes ned.  
 Argumenter nevnt nedenfor legges til forløpende på slutten av f.eks følgende:  
-`docker run -v /home/username/nbno/:/data ghcr.io/lanjelin/nbnopy:latest --id digitidsskrift_202101..etc --title --pdf`  
+`docker run --rm -v /home/username/nbno/:/data ghcr.io/lanjelin/nbnopy:latest --id digitidsskrift_202101..etc --title --pdf`  
 
 ### Kjøring uten Docker
 For å kjøre denne koden trengs Python 3.7 eller nyere, pillow og requests.
