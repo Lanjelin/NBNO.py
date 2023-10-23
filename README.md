@@ -3,7 +3,12 @@
 
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
+### Kjøring i Docker
+Bind en lokal mappe til `/data` for å få tilgang til filer som lastes ned.  
+Argumenter nevnt nedenfor legges til forløpende på slutten av f.eks følgende:  
+`docker run -v /home/username/nbno/:/data ghcr.io/lanjelin/nbnopy:latest --id digitidsskrift_202101..etc --title --pdf`  
 
+### Kjøring uten Docker
 For å kjøre denne koden trengs Python 3.7 eller nyere, pillow og requests.
 
 Linux og Mac kommer normalt med python installert.
@@ -13,6 +18,7 @@ For å sjekke versjon av python, kjør `python --version`(Windows), `python3 --v
 
 For å installere pillow og requests, kjør `python3 -m pip install -r requirements.txt` fra samme mappen de nedlastede filene herfra ligger.
 
+### Argumenter
 Eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc --> `python3 nbno.py --id digitidsskrift_202101..etc`
 
 Følgende er støttet:
@@ -36,6 +42,7 @@ påkrevd argument:
 valgfrie argumenter:
   -h, --help      show this help message and exit
   --cover         Settes for å laste covers
+  --title         Settes for å hente tittel på bok automatisk
   --pdf           Settes for å lage pdf av bildene som lastes
   --f2pdf         Settes for å lage pdf av bilder i eksisterende mappe
   --url           Settes for å printe URL på hver del
