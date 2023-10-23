@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import io
 import os
+import re
 import warnings
 import argparse
 from PIL import Image
@@ -35,6 +36,7 @@ class Book:
         self.api_url = "https://api.nb.no/catalog/v1/iiif/URN:NBN:no-nb"
         self.tilgang = ""
         self.image_url = ""
+        self.title = "nbnopy"
         self.folder_path = ""
         self.existing_images = []
         self.page_names = []
@@ -59,6 +61,9 @@ class Book:
 
     def set_to_print_errors(self):
         self.print_error = True
+
+    def set_title(self):
+        self.set_folder_path("." + os.path.sep + self.title + os.path.sep)
 
     def verbose_print(self):
         self.verbose = True
@@ -118,6 +123,9 @@ class Book:
                 self.page_url[page_name] = page["images"][0]["resource"]["service"][
                     "@id"
                 ]
+            if (self.media_type == "digibok"):
+                # self.title = ''.join(ch for ch in json_data["metadata"][1]["value"].strip() if ch.isalnum())
+                self.title = re.sub(r'[^\w_. -]', '', json_data["metadata"][1]["value"])
             self.tilgang = json_data["metadata"][0]["value"]
             self.page_names = sorted(self.page_names)
             self.num_pages = len(self.page_names)
@@ -283,6 +291,9 @@ class Book:
     def make_pdf(self):
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         imagelist = self.page_names
+        pdf_title = self.media_id
+        if self.title != "nbnopy":
+            pdf_title = self.title
         if self.covers:
             if "C1" in self.page_data:
                 imagelist = ["C1", *imagelist]
@@ -292,14 +303,14 @@ class Book:
             image_path = f"{self.folder_path}{image}.jpg"
             try:
                 Image.open(image_path).save(
-                    self.media_id + ".pdf", "PDF", resolution=100.0, append=True
+                    pdf_title + ".pdf", "PDF", resolution=100.0, append=True
                 )
-                print(f"{' '*5}{image}.jpg --> {self.media_id}.pdf", end="\r")
+                print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
             except OSError:
                 Image.open(image_path).save(
-                    self.media_id + ".pdf", "PDF", resolution=100.0
+                    pdf_title + ".pdf", "PDF", resolution=100.0
                 )
-                print(f"{' '*5}{image}.jpg --> {self.media_id}.pdf", end="\r")
+                print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
             except Exception:
                 print(f"For store bildefiler til å lage PDF, beklager.")
                 return False
@@ -329,6 +340,12 @@ def main():
     )
     optional.add_argument(
         "--cover", action="store_true", help="Settes for å laste covers", default=False
+    )
+    optional.add_argument(
+        "--title",
+        action="store_true",
+        help="Settes for å hente tittel på bok automatisk",
+        default=False,
     )
     optional.add_argument(
         "--pdf",
@@ -419,6 +436,8 @@ def main():
         print(f"Laster ned {book.media_type} med ID: {book.media_id}.")
         if args.cover:
             book.download_covers()
+        if args.title:
+            book.set_title()
         download = book.download()
         if download == False:
             print(
