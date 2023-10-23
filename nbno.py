@@ -25,7 +25,7 @@ class Book:
             self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
         self.media_id = digimedie.split(self.media_type + "_")[1]
         self.current_page = "0001"
-        self.max_threads = multiprocessing.cpu_count() * 4
+        self.max_workers = multiprocessing.cpu_count() * 4
         self.covers = False
         self.verbose = False
         self.print_url = False
@@ -168,7 +168,7 @@ class Book:
         if len(imagelist) == 0:
             return False
         else:
-            with cf.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            with cf.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 future_download = {
                     executor.submit(self.download_page, page): page
                     for page in imagelist
