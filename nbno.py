@@ -5,6 +5,7 @@ import os
 import re
 import warnings
 import argparse
+import threading
 from PIL import Image
 from glob import glob
 from math import ceil
@@ -51,6 +52,7 @@ class Book:
         self.session.mount("http://", self.adapter)
         self.set_folder_path("." + os.path.sep + str(self.media_id) + os.path.sep)
         self.get_manifest()
+        self.image_lock = threading.Lock()
 
     def set_tile_sizes(self, width, height):
         self.tile_width = width
@@ -131,8 +133,7 @@ class Book:
             self.num_pages = len(self.page_names)
 
     def fetch_new_image_url(self, side, column, row):
-        self.current_page = str(side)
-        self.image_url = (
+        image_url = (
             f"{self.page_url[side]}/"
             f"{int(column)*self.tile_width},"
             f"{int(row)*self.tile_height},"
@@ -140,8 +141,9 @@ class Book:
             f"/full/0/native.jpg"
         )
         if self.print_url:
-            print(self.image_url)
-        return self.image_url
+            print(f"Side: {side}, Col: {column}, Row: {row}")
+            print(image_url)
+        return image_url
 
     def update_column_row(self, side):
         column_number, row_number = 0, 0
@@ -234,7 +236,8 @@ class Book:
                 else:
                     try:
                         img = Image.open(io.BytesIO(response.content))
-                        image_parts.append(img)
+                        with self.image_lock:
+                            image_parts.append(img)
                         if row_number == 0:
                             max_width += img.size[0]
                             column_counter += 1
