@@ -21,8 +21,9 @@ class Book:
     """Holder styr på all info om bildefiler til bok/avis/mm."""
 
     def __init__(self, digimedie):
-        if digimedie.find("pliktmonografi") > -1:
-            self.media_type = "pliktmonografi"
+        if digimedie.find("plikt") > -1:
+            self.media_type = "plikt" + \
+                digimedie.split("plikt")[1].split("_")[0]
         else:
             self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
         self.media_id = digimedie.split(self.media_type + "_")[1]
@@ -47,10 +48,12 @@ class Book:
         self.resize = 0
         self.session = session()
         self.session.headers["User-Agent"] = "Mozilla/5.0"
-        self.adapter = HTTPAdapter(max_retries=(Retry(total=5, backoff_factor=0.5)))
+        self.adapter = HTTPAdapter(max_retries=(
+            Retry(total=5, backoff_factor=0.5)))
         self.session.mount("https://", self.adapter)
         self.session.mount("http://", self.adapter)
-        self.set_folder_path("." + os.path.sep + str(self.media_id) + os.path.sep)
+        self.set_folder_path("." + os.path.sep +
+                             str(self.media_id) + os.path.sep)
         self.get_manifest()
         self.image_lock = threading.Lock()
 
@@ -101,7 +104,11 @@ class Book:
         self.page_names = pages
 
     def get_manifest(self):
-        manifest_url = f"{self.api_url}_{self.media_type}" f"_{self.media_id}/manifest"
+        manifest_url = (
+            f"{self.api_url}_{
+                self.media_type}"
+            f"_{self.media_id}/manifest"
+        )
         try:
             response = self.session.get(manifest_url)
             response.raise_for_status()
@@ -114,7 +121,8 @@ class Book:
                     page_name = page["@id"].split("_")[-2]
                 elif self.media_type == "digikart":
                     page_name = (
-                        page["@id"].split("_")[-2] + "_" + page["@id"].split("_")[-1]
+                        page["@id"].split("_")[-2] + "_" +
+                        page["@id"].split("_")[-1]
                     )
                 else:
                     page_name = page["@id"].split("_")[-1]
@@ -125,9 +133,9 @@ class Book:
                 self.page_url[page_name] = page["images"][0]["resource"]["service"][
                     "@id"
                 ]
-            if (self.media_type == "digibok"):
-                # self.title = ''.join(ch for ch in json_data["metadata"][1]["value"].strip() if ch.isalnum())
-                self.title = re.sub(r'[^\w_. -]', '', json_data["metadata"][1]["value"])
+            if self.media_type == "digibok":
+                self.title = re.sub(
+                    r"[^\w_. -]", "", json_data["metadata"][1]["value"])
             self.tilgang = json_data["metadata"][0]["value"]
             self.page_names = sorted(self.page_names)
             self.num_pages = len(self.page_names)
@@ -199,7 +207,8 @@ class Book:
                         progress += 1
                         if not self.verbose:
                             print(
-                                f"{' '*5}Lagrer side {progress} av {len(imagelist)}.",
+                                f"{' ' *
+                                    5}Lagrer side {progress} av {len(imagelist)}.",
                                 end="\r",
                             )
             if self.verbose:
@@ -217,7 +226,8 @@ class Book:
         while row_number <= max_row:
             column_number = 0
             while column_number <= max_column:
-                url = self.fetch_new_image_url(page_number, column_number, row_number)
+                url = self.fetch_new_image_url(
+                    page_number, column_number, row_number)
                 try:
                     response = self.session.get(url, timeout=10)
                     response.raise_for_status()
@@ -270,7 +280,8 @@ class Book:
                     while column_number <= column_counter:
                         full_page.paste(
                             image_parts[part_counter],
-                            ((column_number * part_width), (row_number * part_height)),
+                            ((column_number * part_width),
+                             (row_number * part_height)),
                         )
                         part_counter += 1
                         column_number += 1
@@ -285,10 +296,16 @@ class Book:
                 return True, 200
             else:
                 if page_number in ["I3", "I1", "C3", "C2", "C1"]:
-                    print(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
+                    print(
+                        f"Feilet å laste ned side {
+                            page_number}.jpg - hopper over."
+                    )
                     return True, 200
                 else:
-                    print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
+                    print(
+                        f"Feilet å laste ned side {
+                            page_number}.jpg - prøver igjen."
+                    )
                     return self.download_page(page_number)
 
     def make_pdf(self):
@@ -311,8 +328,7 @@ class Book:
                 print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
             except OSError:
                 Image.open(image_path).save(
-                    pdf_title + ".pdf", "PDF", resolution=100.0
-                )
+                    pdf_title + ".pdf", "PDF", resolution=100.0)
                 print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
             except Exception:
                 print(f"For store bildefiler til å lage PDF, beklager.")
@@ -328,7 +344,8 @@ def f2pdf(image_location, pdf_name):
             pdf_name + ".pdf", "PDF", resolution=100.0, append=True
         )
     except OSError:
-        Image.open(image_location).save(pdf_name + ".pdf", "PDF", resolution=100.0)
+        Image.open(image_location).save(
+            pdf_name + ".pdf", "PDF", resolution=100.0)
 
 
 def main():
@@ -400,7 +417,8 @@ def main():
             media_type = "dig" + args.id.split("dig")[1].split("_")[0]
             media_id = str(args.id.split(media_type + "_")[1])
             filelist = []
-            filelist.extend(glob(os.path.join(str(media_id), ("[0-9]" * 4) + ".jpg")))
+            filelist.extend(
+                glob(os.path.join(str(media_id), ("[0-9]" * 4) + ".jpg")))
             if not filelist:
                 filelist.extend(
                     glob(os.path.join(str(media_id), ("[0-9]" * 3) + ".jpg"))
@@ -408,7 +426,8 @@ def main():
             filelist = sorted(filelist)
             print(f"Lager {media_id}.pdf\n")
             if args.cover:
-                filelist = [f"{media_id}/C1.jpg", *filelist, f"{media_id}/C3.jpg"]
+                filelist = [f"{media_id}/C1.jpg",
+                            *filelist, f"{media_id}/C3.jpg"]
             for file in filelist:
                 f2pdf(file, str(media_id))
                 print(
@@ -434,7 +453,8 @@ def main():
             if int(args.stop) > book.num_pages:
                 print("Du har forsøkt å laste ned flere sider enn det eksisterer.")
                 print(
-                    f"Det finnes kun {book.num_pages} sider, du får ikke flere enn dette."
+                    f"Det finnes kun {
+                        book.num_pages} sider, du får ikke flere enn dette."
                 )
         print(f"Laster ned {book.media_type} med ID: {book.media_id}.")
         if args.cover:
