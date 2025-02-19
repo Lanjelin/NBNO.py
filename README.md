@@ -32,6 +32,23 @@ Følgende er støttet:
  - Musikkmanuskripter (digimanus)
  - Plakater (digifoto)
  - Programrapport (digiprogramrapport)
+
+<details>
+  <summary>Innlogget innhold</summary>
+  Som innlogget, åpne boka der en kan lese den, åpne Utviklerverktøy og finn Nettverkfanen.  
+  Refresh siden, og nettverksfanen populeres med innhold.  
+  Finn og velg manifest?fields=etcetc i listen, og bla igjen ned og finn Request Headers.  
+
+  Her kopieres innholdet fra authorization og cookie og lagres i en textfil ved scriptet.  
+  Formaten på tekstfilen er
+  ```
+  authorization=4JjcVi6faGF-GhD6wMoXZ80rUkg.*AAJTSQACMDIAAlNLABxxRandomRandomxxSNVpvUTlQxxRandomRandomxxDVFMAAlMxAAIwMQ..
+  cookie=_ga=GA1.1.1234543217.123454321; _hjSessionUser_123454321=eyJpZCI6IjUzOTZmxxRandomRandomxxy1hNDEwLTc0ZjA4NTJhxxRandomRandomxxOjE3MjYwNTEyNzcxxRandomRandomxxW5nIjp0cnVlfQ==;osvosvetc
+  ```
+  Scriptet kjøres deretter med `--cookie` flagget som peker til filen, feks `python3 nbno.py --id blabla --cookie nbno-cookie.txt`
+
+</details>
+
 ```
 bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] [--error] 
               [--v] [--resize <int>] [--start <int>] [--stop <int>]
@@ -51,4 +68,5 @@ valgfrie argumenter:
   --resize <int>  Prosent av originalstørrelse på bilder
   --start <int>   Sidetall å starte på
   --stop <int>    Sidetall å stoppe på
+  --cookie <string>  Sti til fil for autentisering
 ```

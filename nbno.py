@@ -77,6 +77,16 @@ class Book:
         self.folder_path = folder_path
         self.find_existing_files()
 
+    def load_cookie(self, file_path):
+        with open(file_path) as f:
+            for line in f:
+                if "=" in line:
+                    key, value = map(str.strip, line.split("=", 1))
+                    if key in ["authorization", "cookie"]:
+                        self.session.headers[key] = value
+        if self.verbose:
+            print(self.session.headers)
+
     def find_existing_files(self):
         filelist = []
         filelist.extend(glob(os.path.join(f"{self.folder_path}*.jpg")))
@@ -409,6 +419,12 @@ def main():
     optional.add_argument(
         "--stop", metavar="<int>", help="Sidetall å stoppe på", default=False
     )
+    optional.add_argument(
+        "--cookie",
+        metavar="<string>",
+        help="Sti til fil for autentisering",
+        default=False
+    )
     parser._action_groups.append(optional)
     args = parser.parse_args()
 
@@ -444,6 +460,12 @@ def main():
             book.set_to_print_errors()
         if args.v:
             book.verbose_print()
+        if args.cookie:
+            if os.path.exists(args.cookie):
+                book.load_cookie(args.cookie)
+            else:
+                print(f"Fil for autentisering ikke funnet: {args.cookie}")
+                exit()
         if args.resize:
             book.set_resize(int(args.resize))
         if args.start:
