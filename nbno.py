@@ -17,16 +17,28 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 
 
+BASE_DIR = os.environ.get('DOWNLOAD_DIR', '.')
+# directory for aggregated PDFs
+# PDFs and sources organized per book directory
+
 class Book:
     """Holder styr på all info om bildefiler til bok/avis/mm."""
 
-    def __init__(self, digimedie):
+    def __init__(self, digimedie, cli_mode=False):
+        # original passed ID; media_type and media_id will be set next
+        self.digimedie = digimedie
+        # run in CLI mode (flat dirs) vs. webapp mode (sources/, metadata/, pdf/)
+        self.cli_mode = bool(cli_mode)
         if digimedie.find("plikt") > -1:
             self.media_type = "plikt" + \
                 digimedie.split("plikt")[1].split("_")[0]
         else:
             self.media_type = "dig" + digimedie.split("dig")[1].split("_")[0]
         self.media_id = digimedie.split(self.media_type + "_")[1]
+        # default folder_name = type + '_' + id
+        self.folder_name = f"{self.media_type}_{self.media_id}"
+        # store the original download folder name for canonical references
+        self.default_folder_name = self.folder_name
         self.current_page = "0001"
         self.max_workers = multiprocessing.cpu_count() * 4
         self.covers = False
@@ -42,9 +54,12 @@ class Book:
         self.folder_path = ""
         self.existing_images = []
         self.page_names = []
+        self.raw_metadata = []
         self.page_data = {}
         self.page_url = {}
         self.num_pages = 0
+        # manifest-level thumbnail (from IIIF manifest), if any
+        self.manifest_thumbnail = None
         self.resize = 0
         self.session = session()
         self.session.headers["User-Agent"] = "Mozilla/5.0"
@@ -52,8 +67,19 @@ class Book:
             Retry(total=5, backoff_factor=0.5)))
         self.session.mount("https://", self.adapter)
         self.session.mount("http://", self.adapter)
-        self.set_folder_path("." + os.path.sep +
-                             str(self.media_id) + os.path.sep)
+        # whether to include a cover page (C1.jpg) first in PDF output
+        self.include_cover = False
+        # base output directory may be configured via DOWNLOAD_DIR env var
+        self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
+        # per-book storage layout differs: flat (CLI) or nested (webapp)
+        if self.cli_mode:
+            self.sources_dir = self.folder_path
+            self.pdf_dir = self.folder_path
+            self.meta_dir = self.folder_path
+        else:
+            self.sources_dir = os.path.join(self.folder_path, 'sources') + os.path.sep
+            self.pdf_dir = os.path.join(self.folder_path, 'pdf') + os.path.sep
+            self.meta_dir = os.path.join(self.folder_path, 'metadata') + os.path.sep
         self.get_manifest()
         self.image_lock = threading.Lock()
 
@@ -68,7 +94,14 @@ class Book:
         self.print_error = True
 
     def set_title(self):
-        self.set_folder_path("." + os.path.sep + self.title + os.path.sep)
+        # rename folder to title string
+        self.folder_name = self.title
+        self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
+
+    def set_folder_name(self, folder_name):
+        """Override the target folder/pdf name before downloading."""
+        self.folder_name = folder_name
+        self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
 
     def verbose_print(self):
         self.verbose = True
@@ -125,24 +158,37 @@ class Book:
             json_data = response.json()
         except RequestException as error:
             print(error)
-        else:
-            for page in json_data["sequences"][0]["canvases"]:
-                if self.media_type == "digavis":
-                    page_name = page["@id"].split("_")[-2]
-                elif self.media_type == "digikart":
-                    page_name = (
-                        page["@id"].split("_")[-2] + "_" +
-                        page["@id"].split("_")[-1]
-                    )
-                else:
-                    page_name = page["@id"].split("_")[-1]
-                page_dims = [page["width"], page["height"]]
-                if page_name.isdecimal():
-                    self.page_names.append(page_name)
-                self.page_data[page_name] = page_dims
-                self.page_url[page_name] = page["images"][0]["resource"]["service"][
-                    "@id"
-                ]
+            return
+        # retain raw metadata for preview
+        self.raw_metadata = json_data.get('metadata', [])
+        # grab manifest-level thumbnail if provided
+        thumb_val = json_data.get('thumbnail')
+        if thumb_val:
+            # thumbnail may be dict or list
+            if isinstance(thumb_val, list) and thumb_val:
+                t = thumb_val[0]
+            else:
+                t = thumb_val
+            # IIIF Presentation v3 uses 'id', v2 uses '@id'
+            if isinstance(t, dict):
+                self.manifest_thumbnail = t.get('id') or t.get('@id')
+            elif isinstance(t, str):
+                self.manifest_thumbnail = t
+        for page in json_data["sequences"][0]["canvases"]:
+            if self.media_type == "digavis":
+                page_name = page["@id"].split("_")[-2]
+            elif self.media_type == "digikart":
+                page_name = (
+                    page["@id"].split("_")[-2] + "_" +
+                    page["@id"].split("_")[-1]
+                )
+            else:
+                page_name = page["@id"].split("_")[-1]
+            page_dims = [page["width"], page["height"]]
+            if page_name.isdecimal():
+                self.page_names.append(page_name)
+            self.page_data[page_name] = page_dims
+            self.page_url[page_name] = page["images"][0]["resource"]["service"]["@id"]
             if self.media_type == "digibok":
                 self.title = re.sub(
                     r"[^\w_. -]", "", json_data["metadata"][1]["value"])
@@ -151,11 +197,16 @@ class Book:
             self.num_pages = len(self.page_names)
 
     def fetch_new_image_url(self, side, column, row):
+        # compute region to request, clamped to page bounds to avoid oversize requests
+        orig_w, orig_h = self.page_data[side]
+        x = int(column) * self.tile_width
+        y = int(row) * self.tile_height
+        # clamp width/height for last tiles so as not to exceed page dimensions
+        region_w = min(self.tile_width, orig_w - x)
+        region_h = min(self.tile_height, orig_h - y)
         image_url = (
             f"{self.page_url[side]}/"
-            f"{int(column)*self.tile_width},"
-            f"{int(row)*self.tile_height},"
-            f"{self.tile_width},{self.tile_height}"
+            f"{x},{y},{region_w},{region_h}"
             f"/full/0/native.jpg"
         )
         if self.print_url:
@@ -165,7 +216,10 @@ class Book:
 
     def update_column_row(self, side):
         column_number, row_number = 0, 0
-        if self.media_type == "digibok" or self.media_type == "digitidsskrift":
+        # use smaller tile sizes for 'plikt' resources to avoid access restrictions
+        if self.media_type.startswith("plikt"):
+            self.set_tile_sizes(300, 300)
+        elif self.media_type in ("digibok", "digitidsskrift"):
             self.set_tile_sizes(1024, 1024)
         else:
             self.set_tile_sizes(4096, 4096)
@@ -174,18 +228,58 @@ class Book:
         return (int(column_number), int(row_number))
 
     def download_covers(self):
+        # include cover pages in download AND PDF ordering
         self.covers = True
+        self.include_cover = True
+
+    def set_include_cover(self, flag=True):
+        """If True, put C1.jpg as first page in generated PDF."""
+        self.include_cover = bool(flag)
 
     def download(self):
-        try:
-            os.stat(self.folder_path)
-        except OSError:
-            os.mkdir(self.folder_path)
+        # prepare directories: sources (images), metadata, pdf
+        os.makedirs(self.sources_dir, exist_ok=True)
+        os.makedirs(self.meta_dir, exist_ok=True)
+        os.makedirs(self.pdf_dir, exist_ok=True)
+        # record original ID and title metadata for UI gallery
+        # write metadata for gallery
+        # write metadata for gallery UI only in webapp mode
+        if not self.cli_mode:
+            try:
+                with open(os.path.join(self.meta_dir, '.nbno_id'), 'w') as mf:
+                    mf.write(self.digimedie)
+                # use manifest thumbnail URL (IIIF) rather than local preview logic
+                thumb = self.manifest_thumbnail
+                import datetime, json
+                meta = {
+                    'orig': self.digimedie,
+                    'title': self.title,
+                    'type': self.media_type,
+                    'pages': self.num_pages,
+                    'thumbnail': thumb,
+                    # use timezone-aware now() rather than deprecated utcnow()
+                    'timestamp': int(datetime.datetime.now(datetime.timezone.utc).timestamp()),
+                }
+                if hasattr(self, 'custom_title'):
+                    meta['custom_title'] = self.custom_title
+                with open(os.path.join(self.meta_dir, '.nbno_meta.json'), 'w', encoding='utf-8') as mf:
+                    json.dump(meta, mf)
+            except Exception:
+                pass
         imagelist = self.page_names
         if self.covers:
-            for cover in ["I3", "I1", "C3", "C2", "C1"]:
+            # order covers same as GUI/web PDF: C1, I1, numbered pages, I3, C2, C3
+            front = []
+            back = []
+            for cover in ("C1", "I1"):  # front covers
                 if cover in self.page_data:
-                    imagelist = [cover, *imagelist]
+                    front.append(cover)
+            # numeric pages (page_names are already sorted)
+            numeric = [p for p in imagelist if p.isdecimal()]
+            for cover in ("I3", "C2", "C3"):  # back covers
+                if cover in self.page_data:
+                    back.append(cover)
+            imagelist = front + numeric + back
         if self.existing_images:
             counter = 0
             for image in self.existing_images:
@@ -300,7 +394,7 @@ class Book:
                     full_page = full_page.resize(
                         [int(self.resize * s) for s in full_page.size]
                     )
-                full_page.save(f"{self.folder_path}{page_number}.jpg")
+                full_page.save(os.path.join(self.sources_dir, f"{page_number}.jpg"))
                 if self.verbose:
                     print(f"{' '*5}Lagret side {page_number}.jpg")
                 return True, 200
@@ -319,33 +413,75 @@ class Book:
                     return self.download_page(page_number)
 
     def make_pdf(self):
+        """Build a PDF from all downloaded JPGs in the folder."""
+        # filter out any warnings for large images
         warnings.simplefilter("error", Image.DecompressionBombWarning)
-        imagelist = self.page_names
-        pdf_title = self.media_id
-        if self.title != "nbnopy":
-            pdf_title = self.title
-        if self.covers:
-            if "C1" in self.page_data:
-                imagelist = ["C1", *imagelist]
-            if "C3" in self.page_data:
-                imagelist = [*imagelist, "C3"]
-        for image in imagelist:
-            image_path = f"{self.folder_path}{image}.jpg"
-            try:
-                Image.open(image_path).save(
-                    pdf_title + ".pdf", "PDF", resolution=100.0, append=True
-                )
-                print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
-            except OSError:
-                Image.open(image_path).save(
-                    pdf_title + ".pdf", "PDF", resolution=100.0)
-                print(f"{' '*5}{image}.jpg --> {pdf_title}.pdf", end="\r")
-            except Exception:
-                print(f"For store bildefiler til å lage PDF, beklager.")
-                return False
-            if self.verbose:
-                print("")
-        return True
+
+        # list all .jpg files in sources subdir (and optionally include cover first)
+        pattern = os.path.join(self.sources_dir, "*.jpg")
+        files = sorted(glob(pattern))
+        if self.include_cover:
+            # desired order: C1, I1, numbered pages, I3, C2, C3
+            basenames = [os.path.basename(f) for f in files]
+            lower = [b.lower() for b in basenames]
+            ordered = []
+            # front covers
+            for name in ('c1.jpg', 'i1.jpg'):
+                if name in lower:
+                    idx = lower.index(name)
+                    ordered.append(files[idx])
+            # numeric pages
+            for fpath, bname in zip(files, basenames):
+                if bname[:-4].isdigit():
+                    ordered.append(fpath)
+            # back covers
+            for name in ('i3.jpg', 'c2.jpg', 'c3.jpg'):
+                if name in lower:
+                    idx = lower.index(name)
+                    ordered.append(files[idx])
+            # append any remaining pages
+            for fpath in files:
+                if fpath not in ordered:
+                    ordered.append(fpath)
+            files = ordered
+        if not files:
+            print("No images found to build PDF.")
+            return False
+
+        # name PDF after the folder_name, not the original ID
+        # ensure PDF_DIR exists
+        # ensure per-book pdf directory exists
+        os.makedirs(self.pdf_dir, exist_ok=True)
+        output_pdf = os.path.join(self.pdf_dir, f"{self.folder_name}.pdf")
+        # try efficient PDF assembly via img2pdf to reduce peak memory use
+        try:
+            import img2pdf
+
+            with open(output_pdf, "wb") as f:
+                f.write(img2pdf.convert(files))
+            print(f"PDF created: {output_pdf}")
+            return True
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"Error creating PDF via img2pdf: {e}")
+            print("Falling back to PIL for PDF creation.")
+
+        # fallback to PIL-based assembly (may use more memory)
+        try:
+            images = [Image.open(path) for path in files]
+            images[0].save(
+                output_pdf,
+                "PDF",
+                resolution=100.0,
+                save_all=True,
+                append_images=images[1:]
+            )
+            print(f"PDF created: {output_pdf}")
+            return True
+        except Exception as e:
+            print(f"Error creating PDF: {e}")
+            return False
 
 
 def f2pdf(image_location, pdf_name):
@@ -453,7 +589,8 @@ def main():
                     print("")
             print("\n\nFerdig med å lage pdf.")
             exit()
-        book = Book(args.id)
+        # CLI mode: flat directory structure for direct downloads
+        book = Book(args.id, cli_mode=True)
         if args.url:
             book.set_to_print_url()
         if args.error:

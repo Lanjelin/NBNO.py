@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NBNO Nedlaster</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .preview-container { position: relative; display: inline-block; cursor: pointer; }
+    .preview-icon {
+      position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: rgba(255,255,255,0.9);
+      font-size: 6rem;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+      pointer-events: none;
+    }
+    .preview-container:hover .preview-icon { opacity: 1; }
+    .preview-img { display: block; }
+  </style>
+</head>
+<body>
+<div class="container my-4">
+  <h1 class="mb-4">NBNO Nedlaster</h1>
+  <!-- PDF Settings (collapsed by default) -->
+  <div class="accordion mb-4" id="pdfSettings">
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="pdfSettingsHeader">
+        <button class="accordion-button collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#pdfSettingsBody"
+                aria-expanded="false" aria-controls="pdfSettingsBody">
+          Innstillinger
+        </button>
+      </h2>
+      <div id="pdfSettingsBody" class="accordion-collapse collapse" data-bs-parent="#pdfSettings">
+        <div class="accordion-body">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="cover-toggle" checked>
+            <label class="form-check-label" for="cover-toggle">Last ned omslag</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="include-cover-pdf" checked>
+            <label class="form-check-label" for="include-cover-pdf">Inkluder omslagsside i PDF</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="enable-ocr" checked>
+            <label class="form-check-label" for="enable-ocr">Aktiver OCR</label>
+          </div>
+          <div class="row g-2 align-items-center mb-2">
+            <div class="col-auto">
+              <label for="ocr-langs" class="form-label mb-0">Språk (tesseract, bruk +):</label>
+            </div>
+            <div class="col-auto">
+              <input type="text" id="ocr-langs" class="form-control form-control-sm" value="eng+nor">
+            </div>
+            {% if ocrlangs %}
+            <div class="col-auto">
+              <small class="form-text">Tilgjengelige: {{ ocrlangs|join(', ') }}</small>
+            </div>
+            {% else %}
+            <div class="col-auto">
+              <small class="form-text text-muted">Ingen Tesseract funnet</small>
+            </div>
+            {% endif %}
+          </div>
+          <div class="mb-2">
+            <label for="ocr-flags" class="form-label mb-1">Ekstra ocrmypdf-flagg:</label>
+            <input type="text" id="ocr-flags" class="form-control form-control-sm" value="--optimize 3">
+          </div>
+          <div class="mb-2">
+            <label class="form-label mb-1">Full OCR-kommando:</label>
+            <pre id="ocr-cmd-preview" class="small bg-light p-2 text-break"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gallery of existing downloads -->
+  {% if books %}
+  <h2 class="h5 mb-3">Nedlastede bøker</h2>
+  <div class="row mb-4">
+    {% for book in books %}
+    <div class="col-sm-6 col-md-4 col-lg-3 mb-3">
+      <div class="card h-100">
+        {% if book.cover %}
+        <div class="preview-container mb-2" data-dir="{{ book.dir }}">
+          <img src="{{ book.cover }}" class="card-img-top preview-img" alt="{{ book.orig }} cover">
+    <div class="preview-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" viewBox="0 0 16 16" focusable="false">
+        <!-- magnifying glass -->
+        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.849a1 1 0 0 0
+                 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+        <!-- plus symbol inside the lens (adjusted left/up for centering) -->
+        <line x1="3.5" y1="6.5" x2="9.5" y2="6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="6.5" y1="3.5" x2="6.5" y2="9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+        </div>
+        {% endif %}
+        <div class="card-body p-2 text-center">
+          <small class="card-title text-truncate d-block">{{ book.title }}</small>
+        {% if book.pages is not none %}
+          <small class="text-muted d-block">{{ book.pages }} sider</small>
+        {% endif %}
+        {% if book.pdf_size %}
+          <small class="text-muted d-block">{{ book.pdf_size }}</small>
+        {% endif %}
+        <small class="text-muted d-block">{{ book.dir }}</small>
+          <div class="btn-group btn-group-sm mt-1">
+            <button class="btn btn-outline-primary make-pdf" data-dir="{{ book.dir }}" data-orig="{{ book.orig }}">Lag PDF</button>
+            {% if book.has_pdf %}
+            <a href="{{ book.pdf_url }}" class="btn btn-outline-success" target="_blank">Vis PDF</a>
+            {% endif %}
+            <button class="btn btn-outline-danger delete-book" data-dir="{{ book.dir }}">Slett</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Sideforhåndsvisning (modal) -->
+  <div class="modal fade" id="pagesModal" tabindex="-1" aria-labelledby="pagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+        <h5 class="modal-title" id="pagesModalLabel">Sideforhåndsvisning</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Lukk"></button>
+        </div>
+        <div class="modal-body">
+          <div id="pagesContainer" class="d-flex flex-column align-items-center gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legg til en medie-ID i nedlastingskø -->
+  <div class="row g-2 align-items-end mb-4">
+    <div class="col-md-6">
+      <label for="queue-id-input" class="form-label">Skriv inn medie-ID</label>
+      <input type="text" id="queue-id-input" class="form-control" placeholder="f.eks. digibok_200709...">
+    </div>
+    <div class="col-auto">
+      <button id="add-btn" class="btn btn-secondary">Legg til i kø</button>
+    </div>
+  </div>
+  <!-- Forhåndsvisning av nedlastingskø -->
+  <h2 class="h5">Nedlastingskø</h2>
+  <div id="queue-list" class="row mb-4"></div>
+  <!-- Start nedlasting-knapp -->
+  <div class="mb-4">
+    <button type="button" id="download-btn" class="btn btn-primary">Start nedlasting</button>
+  </div>
+  <hr>
+  <!-- area for live download progress -->
+  <div id="progress-container" class="mt-3 mb-4" style="display:none;">
+    <div class="progress">
+      <div id="download-progress" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+    </div>
+  </div>
+  <div id="log" class="alert alert-light" style="height:200px; overflow:auto;"></div>
+</div>
+<script>
+// PDF Settings: persist in localStorage
+document.addEventListener('DOMContentLoaded', () => {
+  const ocrCheckbox = document.getElementById('enable-ocr');
+  const langInput = document.getElementById('ocr-langs');
+  // load saved settings
+  const savedOcr = localStorage.getItem('nbno_enable_ocr');
+  if (savedOcr !== null) {
+    ocrCheckbox.checked = savedOcr === 'true';
+  } else {
+    ocrCheckbox.checked = true;
+  }
+  const savedLangs = localStorage.getItem('nbno_ocr_langs');
+  if (savedLangs) langInput.value = savedLangs;
+  // save on change
+  const flagsInput = document.getElementById('ocr-flags');
+  const savedFlags = localStorage.getItem('nbno_ocr_flags');
+  if (savedFlags) flagsInput.value = savedFlags;
+  const cmdPreview = document.getElementById('ocr-cmd-preview');
+  function updateCmd() {
+    const parts = ['ocrmypdf'];
+    if (ocrCheckbox.checked) {
+      parts.push('--language', langInput.value.trim());
+    } else {
+      parts.push('--tesseract-timeout=0');
+    }
+    if (flagsInput.value.trim()) parts.push(...flagsInput.value.trim().split(/\s+/));
+    parts.push('INPUT.pdf', 'OUTPUT.pdf');
+    cmdPreview.textContent = parts.join(' ');
+  }
+  ocrCheckbox.addEventListener('change', () => {
+    localStorage.setItem('nbno_enable_ocr', ocrCheckbox.checked);
+    updateCmd();
+  });
+  langInput.addEventListener('input', () => {
+    localStorage.setItem('nbno_ocr_langs', langInput.value);
+    updateCmd();
+  });
+  flagsInput.addEventListener('input', () => {
+    localStorage.setItem('nbno_ocr_flags', flagsInput.value);
+    updateCmd();
+  });
+  // include-cover toggle persistence
+  const coverPdfCheckbox = document.getElementById('include-cover-pdf');
+  const savedCoverPdf = localStorage.getItem('nbno_include_cover_pdf');
+  if (savedCoverPdf !== null) {
+    coverPdfCheckbox.checked = savedCoverPdf === 'true';
+  } else {
+    coverPdfCheckbox.checked = true;
+  }
+  coverPdfCheckbox.addEventListener('change', () => {
+    localStorage.setItem('nbno_include_cover_pdf', coverPdfCheckbox.checked);
+  });
+  // persist download-covers toggle
+  const downloadCoverCheckbox = document.getElementById('cover-toggle');
+  const savedDownloadCover = localStorage.getItem('nbno_download_covers');
+  if (savedDownloadCover !== null) {
+    downloadCoverCheckbox.checked = savedDownloadCover === 'true';
+  } else {
+    downloadCoverCheckbox.checked = true;
+  }
+  downloadCoverCheckbox.addEventListener('change', () => {
+    localStorage.setItem('nbno_download_covers', downloadCoverCheckbox.checked);
+  });
+  updateCmd();
+  // Queue persistence helpers
+  const QUEUE_KEY = 'nbno_queue';
+  let nbnoQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+
+  function saveQueue() {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(nbnoQueue));
+  }
+
+  async function addQueueCard(id, customName) {
+    const res = await fetch(`/preview?id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (data.error) {
+      console.error('Preview error for', id, data.error);
+      return;
+    }
+    const list = document.getElementById('queue-list');
+    const col = document.createElement('div');
+    col.className = 'col-md-4';
+    const displayName = customName || (() => {
+      const dn = data.metadata.find(m=>m.label==='Tittel')?.value ||
+                data.metadata.find(m=>m.label==='Alternativ tittel')?.value ||
+                id;
+      return dn;
+    })();
+    col.innerHTML = `
+      <div class="card mb-3 position-relative" data-id="${id}">
+        <button type="button" class="btn-close remove-queue-item position-absolute top-0 end-0 m-2" aria-label="Remove"></button>
+        ${data.thumbnail ? `<img src="${data.thumbnail}" class="card-img-top" alt="${data.title}" style="max-height:120px;object-fit:cover;">` : ''}
+        <div class="card-body p-2">
+          <h6 class="card-title text-truncate">${displayName}</h6>
+          <input type="text" class="form-control form-control-sm mb-1 queue-name" value="${displayName.replace(/"/g,'')}">
+          ${data.type ? `<p class="small mb-1"><strong>Type:</strong> ${data.type}</p>` : ''}
+          ${data.pages ? `<p class="small mb-1"><strong>Pages:</strong> ${data.pages}</p>` : ''}
+          ${(() => {
+            const info = {};
+            data.metadata.forEach(m => info[m.label] = m.value);
+            return ['Forfatter','Publisert','ISBN']
+              .map(k => info[k] ? `<p class="small mb-0"><strong>${k}:</strong> ${info[k]}</p>` : '')
+              .join('');
+          })()}
+        </div>
+      </div>`;
+    list.appendChild(col);
+    col.querySelector('.remove-queue-item').onclick = () => {
+      nbnoQueue = nbnoQueue.filter(item => !(item.id === id && item.name === customName));
+      saveQueue();
+      col.remove();
+    };
+  }
+  // load persistent PDF/OCR log
+  fetch('/logs/pdf_ocr.log')
+    .then(r => r.text())
+    .then(txt => {
+      const log = document.getElementById('log');
+      log.innerHTML = txt
+        .split('\n')
+        .map(l => `<div>${l}</div>`)
+        .join('');
+      log.scrollTop = log.scrollHeight;
+    });
+  // load persisted download queue
+  nbnoQueue.forEach(item => addQueueCard(item.id, item.name));
+
+  // Add to queue: fetch preview, append card, and persist
+  document.getElementById('add-btn').onclick = async () => {
+    const rawId = document.getElementById('queue-id-input').value.trim();
+    const id = rawId.replace(/^o-nb_/, '');
+    if (!id) return;
+    const res = await fetch(`/preview?id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    const dn = data.metadata.find(m=>m.label==='Tittel')?.value ||
+               data.metadata.find(m=>m.label==='Alternativ tittel')?.value ||
+               id;
+    const name = dn;
+    await addQueueCard(id, name);
+    nbnoQueue.push({id, name});
+    saveQueue();
+    document.getElementById('queue-id-input').value = '';
+  };
+  // Start download for all queued items
+  document.getElementById('download-btn').onclick = () => {
+    const cards = document.querySelectorAll('#queue-list .card');
+    const ids = [];
+    const names = [];
+    cards.forEach(c => {
+      ids.push(c.dataset.id);
+      const inp = c.querySelector('.queue-name');
+      names.push(inp ? inp.value.trim() || c.dataset.id : c.dataset.id);
+    });
+    if (!ids.length) return alert('Queue is empty.');
+    // clear persisted download queue (we're starting the download)
+    nbnoQueue = [];
+    saveQueue();
+    // clear queue UI
+    document.getElementById('queue-list').innerHTML = '';
+    // show progress bar
+    const prog = document.getElementById('progress-container');
+    const bar = document.getElementById('download-progress');
+    bar.style.width = '0%'; bar.textContent = '0%';
+    prog.style.display = 'block';
+    const log = document.getElementById('log');
+    const cover = document.getElementById('cover-toggle').checked;
+    const params = new URLSearchParams();
+    params.set('id', ids.join(','));
+    params.set('name', names.join(','));
+    params.set('cover', cover ? 'true' : 'false');
+    const es = new EventSource(`/download?${params.toString()}`);
+    es.addEventListener('progress', e => {
+      const {page, total, msg} = JSON.parse(e.data);
+      const pct = Math.floor((page/total)*100);
+      bar.style.width = pct + '%'; bar.textContent = `${page}/${total}`;
+      log.innerHTML += `<div>${msg}</div>`;
+      log.scrollTop = log.scrollHeight;
+    });
+    es.addEventListener('log', e => {
+      const {msg} = JSON.parse(e.data);
+      log.innerHTML += `<div>${msg}</div>`;
+      log.scrollTop = log.scrollHeight;
+    });
+    es.addEventListener('done', () => {
+      es.close();
+      // refresh page to update gallery with newly downloaded books
+      window.location.reload();
+    });
+  };
+// Actions: Make PDF & Delete (use data-dir/orig)
+  document.querySelectorAll('.make-pdf').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // ensure only one OCR/PDF process at a time and give visual feedback
+    document.querySelectorAll('.make-pdf').forEach(b => b.disabled = true);
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>OCR kjører';
+    const dir = btn.dataset.dir;
+    const ocr = document.getElementById('enable-ocr').checked;
+    const langs = document.getElementById('ocr-langs').value.trim();
+    const flags = document.getElementById('ocr-flags').value.trim();
+    const includeCover = document.getElementById('include-cover-pdf').checked;
+    // build flags param: user has control over full ocrmypdf CLI options
+    const combined = [];
+    if (ocr) combined.push('--language', langs);
+    else combined.push('--tesseract-timeout=0');
+    if (flags) combined.push(...flags.split(/\s+/));
+    const params = new URLSearchParams();
+    if (combined.length) params.set('flags', combined.join(' '));
+    if (includeCover) params.set('include_cover', 'true');
+    params.set('stream', '1');
+    const es = new EventSource(`/make_pdf/${dir}?${params.toString()}`);
+    const log = document.getElementById('log');
+    es.addEventListener('log', e => {
+      const data = JSON.parse(e.data);
+      log.innerHTML += `<div>${data.msg}</div>`;
+      log.scrollTop = log.scrollHeight;
+    });
+    es.addEventListener('done', () => {
+      es.close();
+      window.location.reload();
+    });
+  });
+});
+  // Pages preview flyout
+  document.querySelectorAll('.preview-container').forEach(btn => {
+    btn.onclick = async () => {
+      const dir = btn.dataset.dir;
+      const container = document.getElementById('pagesContainer');
+      container.innerHTML = '';
+      try {
+        const includeCover = document.getElementById('include-cover-pdf').checked;
+        const res = await fetch(`/pages/${encodeURIComponent(dir)}?include_cover=${includeCover ? 'true' : 'false'}`);
+        const pages = await res.json();
+        // progressive batch+lazy load thumbnails for smoother scroll
+        const io = new IntersectionObserver((entries, obs) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              img.src = img.dataset.src;
+              obs.unobserve(img);
+            }
+          });
+        }, {root: container, rootMargin: '200px'});
+        const batchSize = 20;
+        let idx = 0;
+        function loadBatch() {
+          for (let i = 0; i < batchSize && idx < pages.length; i++, idx++) {
+            const p = pages[idx];
+            const img = document.createElement('img');
+            img.loading = 'lazy';
+            img.dataset.src = `/files/${dir}/sources/${p}?w=500`;
+            img.className = 'img-thumbnail m-1';
+            container.appendChild(img);
+            io.observe(img);
+          }
+        }
+        // load first batch and subsequent batches on scroll
+        loadBatch();
+        // use sentinel for incremental batch loading (reset any previous)
+        const modalBody = document.querySelector('#pagesModal .modal-body');
+        const parent = container.parentNode;
+        const old = parent.querySelector('.pages-sentinel');
+        if (old) old.remove();
+        const sentinel = document.createElement('div');
+        sentinel.className = 'w-100 pages-sentinel';
+        parent.appendChild(sentinel);
+        const sentinelObserver = new IntersectionObserver(entries => {
+          if (entries[0].isIntersecting) {
+            loadBatch();
+            if (idx >= pages.length) {
+              sentinelObserver.unobserve(sentinel);
+            }
+          }
+        }, {root: modalBody, rootMargin: '200px'});
+        sentinelObserver.observe(sentinel);
+      } catch (e) {
+        container.textContent = 'Error loading pages.';
+      }
+      new bootstrap.Modal(document.getElementById('pagesModal')).show();
+    };
+  });
+
+  // Blur any focus inside the modal before it is hidden to prevent aria-hidden warnings
+  const pagesModalEl = document.getElementById('pagesModal');
+  pagesModalEl.addEventListener('hide.bs.modal', () => {
+    const active = document.activeElement;
+    if (pagesModalEl.contains(active)) active.blur();
+  });
+  document.querySelectorAll('.delete-book').forEach(btn => {
+    btn.onclick = async () => {
+      const dir = btn.dataset.dir;
+      if (!confirm(`Delete "${dir}" and all files?`)) return;
+      const res = await fetch(`/delete/${dir}`, { method: 'DELETE' });
+      if (res.ok) window.location.reload();
+      else alert('Delete failed');
+    };
+  });
+});  // end DOMContentLoaded
+</script>
+</body>
+</html>

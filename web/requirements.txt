@@ -1,0 +1,5 @@
+Pillow == 11.1.0
+requests == 2.32.4
+Flask >= 2.0
+ocrmypdf >= 13.5.0
+img2pdf >= 0.4.0

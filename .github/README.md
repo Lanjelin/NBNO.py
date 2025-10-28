@@ -1,14 +1,51 @@
 # NBNO.py
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Lanjelin/NBNO.py/refs/heads/master/web/static/img/logo.png" width="300" alt="Logo">
+</p>
+
+---
 
 Dette er et Python script som laster ned bøker og annet media fra Nasjonalbiblioteket (NB.no).
 
-### Kjøring i Docker
-Bind en lokal mappe til `/data` for å få tilgang til filer som lastes ned.  
-Argumenter nevnt nedenfor legges til forløpende på slutten av f.eks følgende:  
-`docker run --rm -v /home/nbno/nbno/:/data ghcr.io/lanjelin/nbnopy:latest --id digibok_200709..etc --title --pdf`  
+### Kjøring i Docker - Web
 
-### Kjøring uten Docker
+<details>
+  <summary><strong>Screenshot</strong></summary>
+  <p align="center">
+    <a href=https://github.com/Lanjelin/NBNO.py/blob/master/.github/screenshots/fullpage.png>
+    <img src="https://raw.githubusercontent.com/Lanjelin/NBNO.py/refs/heads/master/.github/screenshots/fullpage.png"
+         alt="Full-page screenshot preview"  width="600"/>
+    </a>
+  </p>
+</details>
+
+
+Bind en lokal mappe til `/data` for å få tilgang til filer som lastes ned via utforsker, filene er ellers tilgjengelige via webgrensesnittet.  
+Om en ønsker flere språk enn Norsk og Engelsk for ORC, må en binde en lokal mappe til `/opt/tessdata` og plassere [*.traineddata](https://github.com/tesseract-ocr/tessdata) der.  
+
+Ellers er det bare å starte containeren, og peke nettlesen til [port 5000](http://127.0.0.1:5000).
+
+For å finne medie-ID, ta en kikk [her](https://github.com/Lanjelin/NBNO.py/blob/master/.github/screenshots/medie_id.png)
+
+#### Docker Run
+`docker run --name nbno -p 5000:5000 -v ./nbno/data:/data -v ./nbno/tessdata:/opt/tessdata -d ghcr.io/lanjelin/nbnopy:latest`
+
+#### Docker compose
+```yaml
+services:
+  nbnopy:
+    container_name: nbno
+    ports:
+      - 5000:5000
+    volumes:
+      - ./nbno/data:/data
+      - ./nbno/tessdata:/opt/tessdata
+    image: ghcr.io/lanjelin/nbnopy:latest
+```
+
+
+### Kjøring uten Docker - CLI
 For å kjøre denne koden trengs Python 3.7 eller nyere, pillow og requests.
 
 Linux og Mac kommer normalt med python installert.
@@ -70,3 +107,4 @@ valgfrie argumenter:
   --stop <int>    Sidetall å stoppe på
   --cookie <string>  Sti til fil for autentisering
 ```
+
