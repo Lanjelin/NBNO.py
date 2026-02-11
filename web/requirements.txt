@@ -1,4 +1,4 @@
-Pillow == 11.1.0
+Pillow == 12.1.1
 requests == 2.32.4
 Flask >= 2.0
 ocrmypdf >= 13.5.0
