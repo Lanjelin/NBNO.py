@@ -6,7 +6,7 @@ import re
 import warnings
 import argparse
 import threading
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from glob import glob
 from math import ceil
 import multiprocessing
@@ -83,6 +83,7 @@ class Book:
         self.get_manifest()
         self.image_lock = threading.Lock()
         self.download_skipped = False
+        self._pdf_redownload_attempts = set()
 
     def set_tile_sizes(self, width, height):
         self.tile_width = width
@@ -438,6 +439,41 @@ class Book:
                     print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
                     return self.download_page(page_number)
 
+    def _attempt_redownload_page_for_pdf(self, path):
+        page_name = os.path.splitext(os.path.basename(path))[0]
+        if page_name in self._pdf_redownload_attempts:
+            return False
+        self._pdf_redownload_attempts.add(page_name)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        print(
+            f"{' '*5}Korrupt bildefil oppdaget for {page_name} under PDF-generering; "
+            "sletter og laster inn siden på nytt."
+        )
+        success, status = self.download_page(page_name)
+        if not success:
+            print(
+                f"Kunne ikke laste ned {page_name} på nytt (HTTP {status}); "
+                "PDF-generering avbrytes."
+            )
+        return success
+
+    def _open_pdf_image(self, path):
+        try:
+            return Image.open(path)
+        except (UnidentifiedImageError, IOError) as error:
+            if self.print_error:
+                print(error)
+            if self._attempt_redownload_page_for_pdf(path):
+                try:
+                    return Image.open(path)
+                except (UnidentifiedImageError, IOError) as second_error:
+                    if self.print_error:
+                        print(second_error)
+            return None
+
     def make_pdf(self):
         """Build a PDF from all downloaded JPGs in the folder."""
         # filter out any warnings for large images
@@ -494,8 +530,14 @@ class Book:
             print("Falling back to PIL for PDF creation.")
 
         # fallback to PIL-based assembly (may use more memory)
+        self._pdf_redownload_attempts.clear()
         try:
-            images = [Image.open(path) for path in files]
+            images = []
+            for path in files:
+                image = self._open_pdf_image(path)
+                if image is None:
+                    return False
+                images.append(image)
             images[0].save(
                 output_pdf,
                 "PDF",
@@ -602,7 +644,7 @@ def main():
                     glob(os.path.join(str(media_id), ("[0-9]" * 3) + ".jpg"))
                 )
             filelist = sorted(filelist)
-            print(f"Lager {media_id}.pdf\n")
+            print(f"\nLager {media_id}.pdf\n")
             if args.cover:
                 filelist = [f"{media_id}/C1.jpg",
                             *filelist, f"{media_id}/C3.jpg"]
@@ -656,7 +698,7 @@ def main():
             if not book.download_skipped:
                 print(f"\n{' '*5}Ferdig med å laste ned alle sider.\n")
         if args.pdf:
-            print(f"{' '*5}Lager {book.media_id}.pdf")
+            print(f"\nLager {book.media_id}.pdf")
             savepdf = book.make_pdf()
             if savepdf:
                 print(f"\n{' '*5}Ferdig med å lage pdf.\n")
