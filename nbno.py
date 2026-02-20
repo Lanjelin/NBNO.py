@@ -87,6 +87,21 @@ class Book:
         self.tile_width = width
         self.tile_height = height
 
+    def _extract_label_text(self, label):
+        if isinstance(label, str):
+            return label
+        if isinstance(label, list):
+            for entry in label:
+                text = self._extract_label_text(entry)
+                if text:
+                    return text
+        if isinstance(label, dict):
+            for entry in label.values():
+                text = self._extract_label_text(entry)
+                if text:
+                    return text
+        return ""
+
     def set_to_print_url(self):
         self.print_url = True
 
@@ -170,6 +185,26 @@ class Book:
                 self.manifest_thumbnail = t.get('id') or t.get('@id')
             elif isinstance(t, str):
                 self.manifest_thumbnail = t
+        metadata = self.raw_metadata or []
+        if metadata:
+            first_entry = metadata[0]
+            tilgang_val = None
+            if isinstance(first_entry, dict):
+                tilgang_val = first_entry.get("value")
+            elif isinstance(first_entry, str):
+                tilgang_val = first_entry
+            if tilgang_val:
+                self.tilgang = tilgang_val
+            label_candidate = self._extract_label_text(json_data.get("label"))
+            if not label_candidate and len(metadata) > 1:
+                second_entry = metadata[1]
+                if isinstance(second_entry, dict):
+                    label_candidate = second_entry.get("value", "")
+                elif isinstance(second_entry, str):
+                    label_candidate = second_entry
+            if label_candidate:
+                self.title = re.sub(r"[^\w_. -]", "", label_candidate)
+
         for page in json_data["sequences"][0]["canvases"]:
             if self.media_type == "digavis":
                 page_name = page["@id"].split("_")[-2]
@@ -185,12 +220,8 @@ class Book:
                 self.page_names.append(page_name)
             self.page_data[page_name] = page_dims
             self.page_url[page_name] = page["images"][0]["resource"]["service"]["@id"]
-            if self.media_type == "digibok":
-                self.title = re.sub(
-                    r"[^\w_. -]", "", json_data["metadata"][1]["value"])
-            self.tilgang = json_data["metadata"][0]["value"]
-            self.page_names = sorted(self.page_names)
-            self.num_pages = len(self.page_names)
+        self.page_names = sorted(self.page_names)
+        self.num_pages = len(self.page_names)
 
     def fetch_new_image_url(self, side, column, row):
         # compute region to request, clamped to page bounds to avoid oversize requests
