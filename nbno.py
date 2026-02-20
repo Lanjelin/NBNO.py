@@ -82,6 +82,7 @@ class Book:
             self.meta_dir = os.path.join(self.folder_path, 'metadata') + os.path.sep
         self.get_manifest()
         self.image_lock = threading.Lock()
+        self.download_skipped = False
 
     def set_tile_sizes(self, width, height):
         self.tile_width = width
@@ -293,6 +294,7 @@ class Book:
                     json.dump(meta, mf)
             except Exception:
                 pass
+        self.download_skipped = False
         imagelist = self.page_names
         if self.covers:
             # order covers same as GUI/web PDF: C1, I1, numbered pages, I3, C2, C3
@@ -313,8 +315,12 @@ class Book:
                 if image in imagelist:
                     counter += 1
                     imagelist.remove(image)
-            print(f"Hopper over {counter} eksisterende sider.")
+            print(f"{' '*5}Hopper over {counter} eksisterende sider.")
         if len(imagelist) == 0:
+            if self.existing_images:
+                print(f"{' '*5}Alle bildene finnes allerede lokalt; hopper over nedlasting.")
+                self.download_skipped = True
+                return True
             return False
         else:
             with cf.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -647,7 +653,8 @@ def main():
             )
             exit()
         else:
-            print(f"\n{' '*5}Ferdig med å laste ned alle sider.\n")
+            if not book.download_skipped:
+                print(f"\n{' '*5}Ferdig med å laste ned alle sider.\n")
         if args.pdf:
             print(f"{' '*5}Lager {book.media_id}.pdf")
             savepdf = book.make_pdf()
