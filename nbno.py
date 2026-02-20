@@ -147,11 +147,7 @@ class Book:
         self.page_names = pages
 
     def get_manifest(self):
-        manifest_url = (
-            f"{self.api_url}_{
-                self.media_type}"
-            f"_{self.media_id}/manifest"
-        )
+        manifest_url = f"{self.api_url}_{self.media_type}_{self.media_id}/manifest"
         try:
             response = self.session.get(manifest_url)
             response.raise_for_status()
@@ -311,8 +307,7 @@ class Book:
                         progress += 1
                         if not self.verbose:
                             print(
-                                f"{' ' *
-                                    5}Lagrer side {progress} av {len(imagelist)}.",
+                                f"{' ' * 5}Lagrer side {progress} av {len(imagelist)}.",
                                 end="\r",
                             )
             if self.verbose:
@@ -400,16 +395,10 @@ class Book:
                 return True, 200
             else:
                 if page_number in ["I3", "I1", "C3", "C2", "C1"]:
-                    print(
-                        f"Feilet å laste ned side {
-                            page_number}.jpg - hopper over."
-                    )
+                    print(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
                     return True, 200
                 else:
-                    print(
-                        f"Feilet å laste ned side {
-                            page_number}.jpg - prøver igjen."
-                    )
+                    print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
                     return self.download_page(page_number)
 
     def make_pdf(self):
@@ -612,8 +601,7 @@ def main():
             if int(args.stop) > book.num_pages:
                 print("Du har forsøkt å laste ned flere sider enn det eksisterer.")
                 print(
-                    f"Det finnes kun {
-                        book.num_pages} sider, du får ikke flere enn dette."
+                    f"Det finnes kun {book.num_pages} sider, du får ikke flere enn dette."
                 )
         print(f"Laster ned {book.media_type} med ID: {book.media_id}.")
         if args.cover:
