@@ -46,7 +46,7 @@ services:
 
 
 ### Kjøring uten Docker - CLI
-For å kjøre denne koden trengs Python 3.7 eller nyere, pillow og requests.
+For å kjøre denne koden trengs Python 3.9 eller nyere, pillow og requests.
 
 Linux og Mac kommer normalt med python installert.
 For Windows, last ned Python fra [python.org](https://www.python.org/downloads/), få med 'Add Python 3.xx to PATH'
