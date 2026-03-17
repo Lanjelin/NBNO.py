@@ -22,41 +22,56 @@ Dette er et Python script som laster ned bøker og annet media fra Nasjonalbibli
 
 
 Bind en lokal mappe til `/data` for å få tilgang til filer som lastes ned via utforsker, filene er ellers tilgjengelige via webgrensesnittet.  
-Om en ønsker flere språk enn Norsk og Engelsk for ORC, må en binde en lokal mappe til `/opt/tessdata` og plassere [*.traineddata](https://github.com/tesseract-ocr/tessdata) der.  
+Om en ønsker flere språk enn Norsk og Engelsk for OCR, må en binde en lokal mappe til `/opt/tessdata` og plassere [*.traineddata](https://github.com/tesseract-ocr/tessdata) der.  
 
 Ellers er det bare å starte containeren, og peke nettlesen til [port 5000](http://127.0.0.1:5000).
 
 For å finne medie-ID, ta en kikk [her](https://github.com/Lanjelin/NBNO.py/blob/master/.github/screenshots/medie_id.png)
 
 #### Docker Run
-`docker run --name nbno -p 5000:5000 -v ./nbno/data:/data -v ./nbno/tessdata:/opt/tessdata -d ghcr.io/lanjelin/nbnopy:latest`
+`docker run --name nbno -p 5000:5000 -v ./nbno/data:/data -v ./nbno/tessdata:/opt/tessdata -d ghcr.io/lanjelin/nbno:latest`
 
 #### Docker compose
 ```yaml
 services:
-  nbnopy:
+  nbno:
     container_name: nbno
     ports:
       - 5000:5000
     volumes:
       - ./nbno/data:/data
       - ./nbno/tessdata:/opt/tessdata
-    image: ghcr.io/lanjelin/nbnopy:latest
+    image: ghcr.io/lanjelin/nbno:latest
 ```
 
 
 ### Kjøring uten Docker - CLI
-For å kjøre denne koden trengs Python 3.9 eller nyere, pillow og requests.
+For å kjøre denne koden trengs Python 3.9 eller nyere.
 
 Linux og Mac kommer normalt med python installert.
 For Windows, last ned Python fra [python.org](https://www.python.org/downloads/), få med 'Add Python 3.xx to PATH'
 
 For å sjekke versjon av python, kjør `python --version`(Windows), `python3 --version`(Mac/Linux), fra kommandolinjen.
 
-For å installere pillow og requests, kjør `python3 -m pip install -r requirements.txt` fra samme mappen de nedlastede filene herfra ligger.
+#### Installer koden
+
+```bash
+python3 -m pip install .
+```
+
+#### Kjøring
+Etter installering kan programmet kjøres slik:
+```bash
+nbno --id <ID>
+```
+
+#### Avinstallering
+```bash
+python3 -m pip uninstall nbno
+```
 
 ### Argumenter
-Eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc --> `python3 nbno.py --id digitidsskrift_202101..etc`
+Eneste påkrevde argumentet er ID, som finnes ved å trykke Referere/Sitere for så å kopiere alt av tekst og tall etter no-nb_ eks. digitidsskrift_202101..etc --> `nbno --id digitidsskrift_202101..etc`
 
 Følgende er støttet:
  - Bøker (digibok)
@@ -87,7 +102,7 @@ Følgende er støttet:
 </details>
 
 ```
-bruk: nbno.py [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] [--error] 
+bruk: nbno [-h] [--id <ID>] [--cover] [--pdf] [--f2pdf] [--url] [--error] 
               [--v] [--resize <int>] [--start <int>] [--stop <int>]
 
 påkrevd argument:

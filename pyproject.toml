@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nbno"
+version = "1.2.3"
+description = "NB.no nedlaster"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "Pillow>=12,<13",
+  "requests>=2.32,<3",
+]
+
+[project.optional-dependencies]
+web = [
+  "Flask>=2,<4",
+  "ocrmypdf>=13.5",
+  "img2pdf>=0.4",
+]
+
+[project.scripts]
+nbno = "nbno:main"
+
+[tool.setuptools]
+py-modules = ["nbno"]

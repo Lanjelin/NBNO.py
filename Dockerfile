@@ -5,18 +5,19 @@ WORKDIR /app
 
 # install system dependencies for OCRmyPDF and Tesseract OCR + rsync for seeding
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       pngquant \
-       jbig2 \
-       unpaper \
-       tesseract-ocr tesseract-ocr-eng tesseract-ocr-nor \
-       poppler-utils qpdf ghostscript \
-       rsync ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends \
+  pngquant \
+  jbig2 \
+  unpaper \
+  tesseract-ocr tesseract-ocr-eng tesseract-ocr-nor \
+  poppler-utils qpdf ghostscript \
+  rsync ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 # Python deps
-COPY web/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml README.md nbno.py ./
+RUN python -m pip install --no-cache-dir --upgrade pip \
+  && python -m pip install --no-cache-dir ".[web]"
 
 # Copy core library and web app into container root (/app)
 COPY nbno.py ./
@@ -37,4 +38,4 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Default to running the app; entrypoint will seed tessdata first
 ENTRYPOINT ["entrypoint.sh"]
-CMD ["python3", "app.py"]
+CMD ["python", "app.py"]
