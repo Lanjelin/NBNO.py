@@ -50,7 +50,7 @@ class Book:
         self.api_url = "https://api.nb.no/catalog/v1/iiif/URN:NBN:no-nb"
         self.tilgang = ""
         self.image_url = ""
-        self.title = "nbnopy"
+        self.title = "nbno"
         self.folder_path = ""
         self.existing_images = []
         self.page_names = []
@@ -245,8 +245,10 @@ class Book:
 
     def update_column_row(self, side):
         column_number, row_number = 0, 0
-        # use smaller tile sizes for 'plikt' resources to avoid access restrictions
-        if self.media_type.startswith("plikt"):
+        # use smaller tile sizes for resources to avoid access restrictions
+        if self.tilgang and "tilgjengelig etter bestemte vilkår" in self.tilgang.lower():
+            self.set_tile_sizes(200,200)
+        elif self.media_type.startswith("plikt"):
             self.set_tile_sizes(300, 300)
         elif self.media_type in ("digibok", "digitidsskrift"):
             self.set_tile_sizes(1024, 1024)
