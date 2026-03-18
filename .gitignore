@@ -13,6 +13,7 @@ env/
 build/
 dist/
 *.egg-info/
+uv.lock
 
 # Installer logs
 pip-log.txt
