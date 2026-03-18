@@ -104,7 +104,7 @@ Følgende er støttet:
   authorization=4JjcVi6faGF-GhD6wMoXZ80rUkg.*AAJTSQACMDIAAlNLABxxRandomRandomxxSNVpvUTlQxxRandomRandomxxDVFMAAlMxAAIwMQ..
   cookie=_ga=GA1.1.1234543217.123454321; _hjSessionUser_123454321=eyJpZCI6IjUzOTZmxxRandomRandomxxy1hNDEwLTc0ZjA4NTJhxxRandomRandomxxOjE3MjYwNTEyNzcxxRandomRandomxxW5nIjp0cnVlfQ==;osvosvetc
   ```
-  Scriptet kjøres deretter med `--cookie` flagget som peker til filen, feks `python3 nbno.py --id blabla --cookie nbno-cookie.txt`
+  Scriptet kjøres deretter med `--cookie` flagget som peker til filen, feks `nbno --id blabla --cookie nbno-cookie.txt`
 
 </details>
 
