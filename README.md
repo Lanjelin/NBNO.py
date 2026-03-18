@@ -53,10 +53,17 @@ For Windows, last ned Python fra [python.org](https://www.python.org/downloads/)
 
 For å sjekke versjon av python, kjør `python --version`(Windows), `python3 --version`(Mac/Linux), fra kommandolinjen.
 
-#### Installer koden
+#### Installer koden fra kilde
 
 ```bash
+git clone https://github.com/Lanjelin/NBNO.py.git
+cd NBNO.py
 python3 -m pip install .
+```
+
+#### Installere koden fra PyPi
+```bash
+python -m pip install nbno
 ```
 
 #### Kjøring
