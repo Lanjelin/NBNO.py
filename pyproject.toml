@@ -7,10 +7,11 @@ name = "nbno"
 version = "1.2.5"
 description = "NB.no nedlaster"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-  "Pillow>=12,<14",
+  "Pillow>=13,<14",
   "requests>=2.32,<3",
+  "urllib3>=2,<3",
 ]
 
 [project.optional-dependencies]
