@@ -9,7 +9,7 @@ description = "NB.no nedlaster"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "Pillow>=12,<13",
+  "Pillow>=12,<14",
   "requests>=2.32,<3",
 ]
 
