@@ -2,7 +2,6 @@
 """
 Simple web interface for nbno downloader.
 """
-import builtins
 import io
 import json
 import os
@@ -10,6 +9,7 @@ import queue
 import re
 import subprocess
 import threading
+import traceback
 from datetime import datetime
 
 import ocrmypdf
@@ -206,7 +206,7 @@ def make_pdf(dirname):
         logs_dir = os.path.join(download_dir, 'logs')
         os.makedirs(logs_dir, exist_ok=True)
         log_file = os.path.join(logs_dir, 'pdf_ocr.log')
-        def hook_print(*args, **kwargs):
+        def log(*args, **kwargs):
             msg = ' '.join(str(a) for a in args)
             records.put(msg)
             try:
@@ -216,11 +216,9 @@ def make_pdf(dirname):
                 pass
 
         def worker():
-            old_print = builtins.print
-            builtins.print = hook_print
             try:
-                print(f"Building PDF for {dirname}...")
-                book = Book(orig)
+                log(f"Building PDF for {dirname}...")
+                book = Book(orig, output=log)
                 book.set_folder_name(dirname)
                 # honor GUI toggle for including cover as first page
                 if include_cover:
@@ -235,15 +233,12 @@ def make_pdf(dirname):
                 cmd.extend([pdf_path, pdf_path])
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 for line in proc.stdout:
-                    print(line.strip())
+                    log(line.strip())
                 proc.wait()
             except Exception:
-                print("Error while building PDF:")
-                import traceback
-
-                traceback.print_exc()
+                log("Error while building PDF:")
+                log(traceback.format_exc())
             finally:
-                builtins.print = old_print
                 pdf_lock.release()
                 records.put(None)
 
@@ -409,7 +404,7 @@ def download():
     os.makedirs(logs_dir, exist_ok=True)
     log_file = os.path.join(logs_dir, 'pdf_ocr.log')
 
-    def hook_print(*args, **kwargs):
+    def log(*args, **kwargs):
         msg = ' '.join(str(a) for a in args)
         # SSE
         records.put(msg)
@@ -420,10 +415,6 @@ def download():
         except Exception:
             pass
 
-    import builtins
-    old_print = builtins.print
-    builtins.print = hook_print
-
     def worker():
         try:
             for idx, mid in enumerate(media_ids):
@@ -432,11 +423,11 @@ def download():
                 clean = re.sub(r"[^\w\s-]", "", raw_name)
                 folder_name = re.sub(r"\s+", "_", clean)
                 # instantiate and remember custom title for metadata
-                book = Book(mid)
+                book = Book(mid, output=log)
                 book.set_folder_name(folder_name)
                 book.custom_title = raw_name
                 # show custom title (matches metadata) in banner
-                print(f"\n=== Downloading {mid} - '{book.custom_title}' ===")
+                log(f"\n=== Downloading {mid} - '{book.custom_title}' ===")
                 if cover_flag:
                     book.download_covers()
                 if title_flag:
@@ -448,8 +439,10 @@ def download():
                 if stop_val is not None:
                     book.set_to_page(stop_val)
                 book.download()
+        except Exception:
+            log("Error while downloading:")
+            log(traceback.format_exc())
         finally:
-            builtins.print = old_print
             records.put(None)
 
     threading.Thread(target=worker, daemon=True).start()

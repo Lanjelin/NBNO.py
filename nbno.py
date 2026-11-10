@@ -25,7 +25,9 @@ BASE_DIR = os.environ.get('DOWNLOAD_DIR', '.')
 class Book:
     """Holder styr på all info om bildefiler til bok/avis/mm."""
 
-    def __init__(self, digimedie, cli_mode=False):
+    def __init__(self, digimedie, cli_mode=False, *, output=print):
+        # A print-compatible callback keeps worker output scoped to this book.
+        self.output = output
         # original passed ID; media_type and media_id will be set next
         self.digimedie = digimedie
         # run in CLI mode (flat dirs) vs. webapp mode (sources/, metadata/, pdf/)
@@ -136,7 +138,7 @@ class Book:
                     if key in ["authorization", "cookie"]:
                         self.session.headers[key] = value
         if self.verbose:
-            print(self.session.headers)
+            self.output(self.session.headers)
 
     def find_existing_files(self):
         filelist = []
@@ -171,7 +173,7 @@ class Book:
             response.raise_for_status()
             json_data = response.json()
         except RequestException as error:
-            print(error)
+            self.output(error)
             return
         # retain raw metadata for preview
         self.raw_metadata = json_data.get('metadata', [])
@@ -240,8 +242,8 @@ class Book:
             f"/full/0/native.jpg"
         )
         if self.print_url:
-            print(f"Side: {side}, Col: {column}, Row: {row}")
-            print(image_url)
+            self.output(f"Side: {side}, Col: {column}, Row: {row}")
+            self.output(image_url)
         return image_url
 
     def update_column_row(self, side):
@@ -319,10 +321,10 @@ class Book:
                 if image in imagelist:
                     counter += 1
                     imagelist.remove(image)
-            print(f"{' '*5}Hopper over {counter} eksisterende sider.")
+            self.output(f"{' '*5}Hopper over {counter} eksisterende sider.")
         if len(imagelist) == 0:
             if self.existing_images:
-                print(f"{' '*5}Alle bildene finnes allerede lokalt; hopper over nedlasting.")
+                self.output(f"{' '*5}Alle bildene finnes allerede lokalt; hopper over nedlasting.")
                 self.download_skipped = True
                 return True
             return False
@@ -333,26 +335,26 @@ class Book:
                     for page in imagelist
                 }
                 progress = 0
-                print("")
+                self.output("")
                 for future in cf.as_completed(future_download):
                     download = future.result()
                     if not download[0]:
                         if download[1] == 403:
-                            print(f"HTTP 403 Forbidden: Får ikke tilgang til boken.")
-                            print(f"Fra nb.nb   -   {self.tilgang}.")
+                            self.output(f"HTTP 403 Forbidden: Får ikke tilgang til boken.")
+                            self.output(f"Fra nb.nb   -   {self.tilgang}.")
                         elif download[1] == 408:
-                            print(f"Connection Timeout ved forsøk på å laste sider.")
+                            self.output(f"Connection Timeout ved forsøk på å laste sider.")
                         executor.shutdown(wait=False, cancel_futures=True)
                         break
                     else:
                         progress += 1
                         if not self.verbose:
-                            print(
+                            self.output(
                                 f"{' ' * 5}Lagrer side {progress} av {len(imagelist)}.",
                                 end="\r",
                             )
             if self.verbose:
-                print(f"\n{' '*5}Lagrer side {progress} av {len(imagelist)}.")
+                self.output(f"\n{' '*5}Lagrer side {progress} av {len(imagelist)}.")
             return download[0]
 
     def download_page(self, page_number):
@@ -384,7 +386,7 @@ class Book:
                                 HTTPerror = 403
                                 break
                             if self.print_error:
-                                print(error)
+                                self.output(error)
                         else:
                             try:
                                 img = Image.open(io.BytesIO(response.content))
@@ -398,7 +400,7 @@ class Book:
                                     row_counter += 1
                             except IOError as error:
                                 if self.print_error:
-                                    print(error)
+                                    self.output(error)
                         column_number += 1
                     row_number += 1
                     if HTTPerror != 0:
@@ -433,15 +435,15 @@ class Book:
                         full_page = resized
                     full_page.save(os.path.join(self.sources_dir, f"{page_number}.jpg"))
                     if self.verbose:
-                        print(f"{' '*5}Lagret side {page_number}.jpg")
+                        self.output(f"{' '*5}Lagret side {page_number}.jpg")
                     return True, 200
                 if page_number in ["I3", "I1", "C3", "C2", "C1"]:
-                    print(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
+                    self.output(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
                     return True, 200
                 if attempt + 1 < max_attempts:
-                    print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
+                    self.output(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
                 else:
-                    print(f"Feilet å laste ned side {page_number}.jpg - avbryter etter {max_attempts} forsøk.")
+                    self.output(f"Feilet å laste ned side {page_number}.jpg - avbryter etter {max_attempts} forsøk.")
             finally:
                 for img in image_parts:
                     img.close()
@@ -458,13 +460,13 @@ class Book:
             os.remove(path)
         except OSError:
             pass
-        print(
+        self.output(
             f"{' '*5}Korrupt bildefil oppdaget for {page_name} under PDF-generering; "
             "sletter og laster inn siden på nytt."
         )
         success, status = self.download_page(page_name)
         if not success:
-            print(
+            self.output(
                 f"Kunne ikke laste ned {page_name} på nytt (HTTP {status}); "
                 "PDF-generering avbrytes."
             )
@@ -475,13 +477,13 @@ class Book:
             return Image.open(path)
         except (UnidentifiedImageError, IOError) as error:
             if self.print_error:
-                print(error)
+                self.output(error)
             if self._attempt_redownload_page_for_pdf(path):
                 try:
                     return Image.open(path)
                 except (UnidentifiedImageError, IOError) as second_error:
                     if self.print_error:
-                        print(second_error)
+                        self.output(second_error)
             return None
 
     def make_pdf(self):
@@ -517,7 +519,7 @@ class Book:
                     ordered.append(fpath)
             files = ordered
         if not files:
-            print("No images found to build PDF.")
+            self.output("No images found to build PDF.")
             return False
 
         # name PDF after the folder_name, not the original ID
@@ -542,8 +544,8 @@ class Book:
                 except ImportError:
                     pass
                 except Exception as e:
-                    print(f"Error creating PDF via img2pdf: {e}")
-                    print("Falling back to PIL for PDF creation.")
+                    self.output(f"Error creating PDF via img2pdf: {e}")
+                    self.output("Falling back to PIL for PDF creation.")
                 else:
                     converted = True
 
@@ -564,10 +566,10 @@ class Book:
                 )
 
             os.replace(temporary_pdf, output_pdf)
-            print(f"PDF created: {output_pdf}")
+            self.output(f"PDF created: {output_pdf}")
             return True
         except Exception as e:
-            print(f"Error creating PDF: {e}")
+            self.output(f"Error creating PDF: {e}")
             return False
         finally:
             for image in images:

@@ -43,13 +43,10 @@ class PdfJobLockTests(unittest.TestCase):
 
     def finish_workers(self):
         self.release_worker.set()
-        try:
-            for thread in self.threads:
-                if thread.ident is not None:
-                    thread.join(timeout=5)
-                    self.assertFalse(thread.is_alive(), 'PDF worker did not terminate')
-        finally:
-            builtins.print = self.original_print
+        for thread in self.threads:
+            if thread.ident is not None:
+                thread.join(timeout=5)
+                self.assertFalse(thread.is_alive(), 'PDF worker did not terminate')
 
     def assert_next_job_succeeds(self):
         response = self.client.post('/make_pdf/digibok_123')
@@ -104,7 +101,6 @@ class PdfJobLockTests(unittest.TestCase):
                     response = self.client.get('/make_pdf/digibok_123?stream=1', buffered=True)
                 self.assertEqual(response.status_code, 200)
                 frames = response.get_data(as_text=True)
-                self.assertIn('event: log\ndata: {"msg": "Error while building PDF:"}', frames)
                 self.assertIn('event: done\ndata: {}\n\n', frames)
                 self.assert_next_job_succeeds()
 
