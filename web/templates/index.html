@@ -238,6 +238,14 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(nbnoQueue));
   }
 
+  const log = document.getElementById('log');
+  function appendLog(message) {
+    const line = document.createElement('div');
+    line.textContent = message;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
   async function addQueueCard(id, customName) {
     const res = await fetch(`/preview?id=${encodeURIComponent(id)}`);
     const data = await res.json();
@@ -255,23 +263,49 @@ document.addEventListener('DOMContentLoaded', () => {
       return dn;
     })();
     col.innerHTML = `
-      <div class="card mb-3 position-relative" data-id="${id}">
+      <div class="card mb-3 position-relative">
         <button type="button" class="btn-close remove-queue-item position-absolute top-0 end-0 m-2" aria-label="Remove"></button>
-        ${data.thumbnail ? `<img src="${data.thumbnail}" class="card-img-top" alt="${data.title}" style="max-height:120px;object-fit:cover;">` : ''}
         <div class="card-body p-2">
-          <h6 class="card-title text-truncate">${displayName}</h6>
-          <input type="text" class="form-control form-control-sm mb-1 queue-name" value="${displayName.replace(/"/g,'')}">
-          ${data.type ? `<p class="small mb-1"><strong>Type:</strong> ${data.type}</p>` : ''}
-          ${data.pages ? `<p class="small mb-1"><strong>Pages:</strong> ${data.pages}</p>` : ''}
-          ${(() => {
-            const info = {};
-            data.metadata.forEach(m => info[m.label] = m.value);
-            return ['Forfatter','Publisert','ISBN']
-              .map(k => info[k] ? `<p class="small mb-0"><strong>${k}:</strong> ${info[k]}</p>` : '')
-              .join('');
-          })()}
+          <h6 class="card-title text-truncate"></h6>
+          <input type="text" class="form-control form-control-sm mb-1 queue-name">
         </div>
       </div>`;
+    const card = col.querySelector('.card');
+    card.dataset.id = id;
+    col.querySelector('.card-title').textContent = displayName;
+    col.querySelector('.queue-name').value = displayName;
+    let thumbnail = null;
+    if (typeof data.thumbnail === 'string') {
+      try {
+        const url = new URL(data.thumbnail, window.location.href);
+        if (url.protocol === 'http:' || url.protocol === 'https:') thumbnail = url;
+      } catch {
+        // Invalid thumbnail URLs are omitted; metadata still remains usable.
+      }
+    }
+    if (thumbnail) {
+      const image = document.createElement('img');
+      image.src = thumbnail.href;
+      image.className = 'card-img-top';
+      image.alt = data.title || '';
+      image.style.maxHeight = '120px';
+      image.style.objectFit = 'cover';
+      card.querySelector('.card-body').before(image);
+    }
+    const body = card.querySelector('.card-body');
+    function appendDetail(label, value, margin = 'mb-0') {
+      if (!value) return;
+      const line = document.createElement('p');
+      line.className = `small ${margin}`;
+      const heading = document.createElement('strong');
+      heading.textContent = `${label}:`;
+      line.append(heading, ` ${value}`);
+      body.appendChild(line);
+    }
+    appendDetail('Type', data.type, 'mb-1');
+    appendDetail('Pages', data.pages, 'mb-1');
+    const info = new Map(data.metadata.map(m => [m.label, m.value]));
+    ['Forfatter', 'Publisert', 'ISBN'].forEach(label => appendDetail(label, info.get(label)));
     list.appendChild(col);
     col.querySelector('.remove-queue-item').onclick = () => {
       nbnoQueue = nbnoQueue.filter(item => !(item.id === id && item.name === customName));
@@ -283,12 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
   fetch('/logs/pdf_ocr.log')
     .then(r => r.text())
     .then(txt => {
-      const log = document.getElementById('log');
-      log.innerHTML = txt
-        .split('\n')
-        .map(l => `<div>${l}</div>`)
-        .join('');
-      log.scrollTop = log.scrollHeight;
+      log.replaceChildren();
+      txt.split('\n').forEach(appendLog);
     });
   // load persisted download queue
   nbnoQueue.forEach(item => addQueueCard(item.id, item.name));
@@ -334,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const bar = document.getElementById('download-progress');
     bar.style.width = '0%'; bar.textContent = '0%';
     prog.style.display = 'block';
-    const log = document.getElementById('log');
     const cover = document.getElementById('cover-toggle').checked;
     const params = new URLSearchParams();
     params.set('id', ids.join(','));
@@ -345,13 +374,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const {page, total, msg} = JSON.parse(e.data);
       const pct = Math.floor((page/total)*100);
       bar.style.width = pct + '%'; bar.textContent = `${page}/${total}`;
-      log.innerHTML += `<div>${msg}</div>`;
-      log.scrollTop = log.scrollHeight;
+      appendLog(msg);
     });
     es.addEventListener('log', e => {
       const {msg} = JSON.parse(e.data);
-      log.innerHTML += `<div>${msg}</div>`;
-      log.scrollTop = log.scrollHeight;
+      appendLog(msg);
     });
     es.addEventListener('done', () => {
       es.close();
@@ -380,11 +407,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (includeCover) params.set('include_cover', 'true');
     params.set('stream', '1');
     const es = new EventSource(`/make_pdf/${dir}?${params.toString()}`);
-    const log = document.getElementById('log');
     es.addEventListener('log', e => {
       const data = JSON.parse(e.data);
-      log.innerHTML += `<div>${data.msg}</div>`;
-      log.scrollTop = log.scrollHeight;
+      appendLog(data.msg);
     });
     es.addEventListener('done', () => {
       es.close();
