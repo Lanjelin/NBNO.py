@@ -474,18 +474,21 @@ class Book:
         return success
 
     def _open_pdf_image(self, path):
-        try:
-            return Image.open(path)
-        except (UnidentifiedImageError, IOError) as error:
-            if self.print_error:
-                self.output(error)
-            if self._attempt_redownload_page_for_pdf(path):
+        for attempt in range(2):
+            try:
+                image = Image.open(path)
                 try:
-                    return Image.open(path)
-                except (UnidentifiedImageError, IOError) as second_error:
-                    if self.print_error:
-                        self.output(second_error)
-            return None
+                    # Opening only reads headers; truncated JPEGs fail during decoding.
+                    image.load()
+                except BaseException:
+                    image.close()
+                    raise
+                return image
+            except (UnidentifiedImageError, IOError) as error:
+                if self.print_error:
+                    self.output(error)
+                if attempt == 1 or not self._attempt_redownload_page_for_pdf(path):
+                    return None
 
     def make_pdf(self):
         """Build a PDF from all downloaded JPGs in the folder."""

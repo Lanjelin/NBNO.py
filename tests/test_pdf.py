@@ -70,11 +70,59 @@ class PdfPreservationTests(unittest.TestCase):
             self.assertFalse(self.book.make_pdf())
         self.assert_original_preserved()
 
-    def test_pillow_decode_failure_preserves_existing_pdf(self):
+    def test_truncated_source_is_redownloaded_before_pillow_conversion(self):
+        page = self.sources / '0002.jpg'
+        complete = page.read_bytes()
+        page.write_bytes(complete[:-10])
+        opened = []
+        open_image = Image.open
+
+        def track_image(*args, **kwargs):
+            image = open_image(*args, **kwargs)
+            opened.append(image)
+            return image
+
+        def redownload(page_name):
+            self.assertEqual(page_name, '0002')
+            self.assertFalse(page.exists())
+            self.assertIsNone(opened[-1].fp)
+            with self.assertRaises(ValueError):
+                opened[-1].getpixel((0, 0))
+            page.write_bytes(complete)
+            return True, 200
+
+        with patch.dict(sys.modules, {'img2pdf': None}), \
+                patch.object(nbno.Image, 'open', side_effect=track_image), \
+                patch.object(self.book, 'download_page', side_effect=redownload) as download:
+            self.assertTrue(self.book.make_pdf())
+        download.assert_called_once_with('0002')
+        self.assert_replaced_with_expected_pages()
+        with Image.open(page) as image:
+            image.load()
+            self.assertEqual(image.size, (80, 20))
+
+    def test_truncated_source_and_failed_recovery_preserve_existing_pdf(self):
         page = self.sources / '0002.jpg'
         page.write_bytes(page.read_bytes()[:-10])
-        with patch.dict(sys.modules, {'img2pdf': None}):
+        with patch.dict(sys.modules, {'img2pdf': None}), \
+                patch.object(self.book, 'download_page', return_value=(False, 403)) as download:
             self.assertFalse(self.book.make_pdf())
+        download.assert_called_once_with('0002')
+        self.assert_original_preserved()
+
+    def test_truncated_replacement_aborts_without_another_redownload(self):
+        page = self.sources / '0002.jpg'
+        truncated = page.read_bytes()[:-10]
+        page.write_bytes(truncated)
+
+        def redownload(page_name):
+            page.write_bytes(truncated)
+            return True, 200
+
+        with patch.dict(sys.modules, {'img2pdf': None}), \
+                patch.object(self.book, 'download_page', side_effect=redownload) as download:
+            self.assertFalse(self.book.make_pdf())
+        download.assert_called_once_with('0002')
         self.assert_original_preserved()
 
     def test_replacement_failure_preserves_existing_pdf(self):
