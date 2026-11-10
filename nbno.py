@@ -365,6 +365,7 @@ class Book:
         for attempt in range(max_attempts):
             image_parts = []
             full_page = None
+            temporary_page = None
             max_width, max_height = 0, 0
             row_counter, column_counter = 0, 0
             row_number = 0
@@ -391,6 +392,11 @@ class Book:
                         else:
                             try:
                                 img = Image.open(io.BytesIO(response.content))
+                                try:
+                                    img.load()
+                                except BaseException:
+                                    img.close()
+                                    raise
                                 with self.image_lock:
                                     image_parts.append(img)
                                 if row_number == 0:
@@ -434,7 +440,14 @@ class Book:
                         )
                         full_page.close()
                         full_page = resized
-                    full_page.save(os.path.join(self.sources_dir, f"{page_number}.jpg"))
+                    with tempfile.NamedTemporaryFile(
+                        dir=self.sources_dir, prefix=".nbno-", suffix=".tmp", delete=False
+                    ) as temporary:
+                        temporary_page = temporary.name
+                        full_page.save(temporary, format="JPEG")
+                    os.replace(
+                        temporary_page, os.path.join(self.sources_dir, f"{page_number}.jpg")
+                    )
                     if self.verbose:
                         self.output(f"{' '*5}Lagret side {page_number}.jpg")
                     return True, 200
@@ -450,6 +463,11 @@ class Book:
                     img.close()
                 if full_page is not None:
                     full_page.close()
+                if temporary_page is not None:
+                    try:
+                        os.remove(temporary_page)
+                    except FileNotFoundError:
+                        pass
         return False, 200
 
     def _attempt_redownload_page_for_pdf(self, path):

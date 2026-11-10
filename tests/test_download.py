@@ -97,6 +97,74 @@ class PageRetryTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 12)
         self.assert_complete_page()
 
+    def test_truncated_tiles_retry_or_skip_without_saving_partial_pages(self):
+        truncated = self.tiles[self.last_region][:-10]
+        for page, transient, expected, request_count in (
+                ('0001', False, (False, 200), 12),
+                ('0001', True, (True, 200), 8),
+                ('C1', False, (True, 200), 4)):
+            with self.subTest(page=page, transient=transient):
+                self.requests.clear()
+                self.outcome = lambda region, number: (
+                    truncated if region == self.last_region and
+                    (not transient or number <= 4) else 200
+                )
+                self.assertEqual(self.book.download_page(page), expected)
+                self.assertEqual(len(self.requests), request_count)
+                if transient:
+                    self.assert_complete_page()
+                    self.output.unlink()
+                self.assertEqual(list(Path(self.book.sources_dir).iterdir()), [])
+
+    def test_successful_save_replaces_existing_page_only_after_encoding(self):
+        self.output.write_bytes(b'existing page')
+        save_image = Image.Image.save
+
+        def save(image, fp, *args, **kwargs):
+            self.assertEqual(self.output.read_bytes(), b'existing page')
+            result = save_image(image, fp, *args, **kwargs)
+            fp.flush()
+            self.assertEqual(self.output.read_bytes(), b'existing page')
+            with Image.open(fp.name) as saved:
+                saved.load()
+                self.assertEqual(saved.size, (1050, 1030))
+            return result
+
+        with patch.object(Image.Image, 'save', new=save):
+            self.assertEqual(self.book.download_page('0001'), (True, 200))
+        self.assert_complete_page()
+        self.assertEqual(set(Path(self.book.sources_dir).iterdir()), {self.output})
+
+    def test_partial_save_failure_never_publishes_incomplete_page(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                if existing:
+                    self.output.write_bytes(b'existing page')
+
+                def fail_save(image, fp, *args, **kwargs):
+                    fp.write(b'partial JPEG')
+                    raise OSError('disk full')
+
+                with patch.object(Image.Image, 'save', new=fail_save):
+                    with self.assertRaises(OSError):
+                        self.book.download_page('0001')
+                if existing:
+                    self.assertEqual(self.output.read_bytes(), b'existing page')
+                else:
+                    self.assertFalse(self.output.exists())
+                self.assertEqual(
+                    set(Path(self.book.sources_dir).iterdir()),
+                    {self.output} if existing else set()
+                )
+
+    def test_replacement_failure_preserves_existing_page_and_removes_temporary(self):
+        self.output.write_bytes(b'existing page')
+        with patch.object(nbno.os, 'replace', side_effect=PermissionError('destination busy')):
+            with self.assertRaises(PermissionError):
+                self.book.download_page('0001')
+        self.assertEqual(self.output.read_bytes(), b'existing page')
+        self.assertEqual(set(Path(self.book.sources_dir).iterdir()), {self.output})
+
     def test_partial_cover_is_skipped_without_page_retries(self):
         self.outcome = lambda region, number: 404 if region == self.last_region else 200
         self.assertEqual(self.book.download_page('C1'), (True, 200))
