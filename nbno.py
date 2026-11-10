@@ -74,15 +74,6 @@ class Book:
         self.include_cover = False
         # base output directory may be configured via DOWNLOAD_DIR env var
         self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
-        # per-book storage layout differs: flat (CLI) or nested (webapp)
-        if self.cli_mode:
-            self.sources_dir = self.folder_path
-            self.pdf_dir = self.folder_path
-            self.meta_dir = self.folder_path
-        else:
-            self.sources_dir = os.path.join(self.folder_path, 'sources') + os.path.sep
-            self.pdf_dir = os.path.join(self.folder_path, 'pdf') + os.path.sep
-            self.meta_dir = os.path.join(self.folder_path, 'metadata') + os.path.sep
         self.get_manifest()
         self.image_lock = threading.Lock()
         self.download_skipped = False
@@ -114,12 +105,10 @@ class Book:
         self.print_error = True
 
     def set_title(self):
-        # rename folder to title string
-        self.folder_name = self.title
-        self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
+        self.set_folder_name(self.title)
 
     def set_folder_name(self, folder_name):
-        """Override the target folder/pdf name before downloading."""
+        """Select the target folder/PDF name without moving existing files."""
         self.folder_name = folder_name
         self.set_folder_path(os.path.join(BASE_DIR, self.folder_name) + os.path.sep)
 
@@ -128,6 +117,16 @@ class Book:
 
     def set_folder_path(self, folder_path):
         self.folder_path = folder_path
+        # per-book storage layout differs: flat (CLI) or nested (webapp)
+        if self.cli_mode:
+            self.sources_dir = self.folder_path
+            self.pdf_dir = self.folder_path
+            self.meta_dir = self.folder_path
+        else:
+            self.sources_dir = os.path.join(self.folder_path, 'sources') + os.path.sep
+            self.pdf_dir = os.path.join(self.folder_path, 'pdf') + os.path.sep
+            self.meta_dir = os.path.join(self.folder_path, 'metadata') + os.path.sep
+        self.existing_images = []
         self.find_existing_files()
 
     def load_cookie(self, file_path):
