@@ -161,9 +161,6 @@ def files(subpath):
 @app.route('/make_pdf/<dirname>', methods=['GET', 'POST'])
 def make_pdf(dirname):
     """Generate PDF for a downloaded book and optionally OCR via ocrmypdf."""
-    # only one PDF/OCR job at a time
-    if not pdf_lock.acquire(blocking=False):
-        return jsonify({'error': 'En annen PDF-prosess kjører allerede'}), 409
     download_dir = os.environ.get('DOWNLOAD_DIR', '.')
     folder = os.path.join(download_dir, dirname)
     if not os.path.isdir(folder):
@@ -182,6 +179,9 @@ def make_pdf(dirname):
     ocr_flags = raw_flags.split() if raw_flags else []
     include_cover = request.args.get('include_cover') == 'true'
     stream = request.args.get('stream') == '1'
+    # Validate the request before taking ownership of the process-local job lock.
+    if not pdf_lock.acquire(blocking=False):
+        return jsonify({'error': 'En annen PDF-prosess kjører allerede'}), 409
     # quick non-streaming mode (JSON response)
     if not stream:
         try:
@@ -200,66 +200,69 @@ def make_pdf(dirname):
             return jsonify({'error': str(e)}), 500
         finally:
             pdf_lock.release()
-    # streaming SSE logs; also append to server-side log file
-    records = queue.Queue()
-    logs_dir = os.path.join(download_dir, 'logs')
-    os.makedirs(logs_dir, exist_ok=True)
-    log_file = os.path.join(logs_dir, 'pdf_ocr.log')
-    def hook_print(*args, **kwargs):
-        msg = ' '.join(str(a) for a in args)
-        # send to SSE queue
-        records.put(msg)
-        # append to persistent log file
-        try:
-            with open(log_file, 'a', encoding='utf-8') as lf:
-                lf.write(msg + "\n")
-        except Exception:
-            pass
+    # The request owns the lock until the streaming worker starts successfully.
+    try:
+        records = queue.Queue()
+        logs_dir = os.path.join(download_dir, 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file = os.path.join(logs_dir, 'pdf_ocr.log')
+        def hook_print(*args, **kwargs):
+            msg = ' '.join(str(a) for a in args)
+            records.put(msg)
+            try:
+                with open(log_file, 'a', encoding='utf-8') as lf:
+                    lf.write(msg + "\n")
+            except Exception:
+                pass
 
-    old_print = builtins.print
-    builtins.print = hook_print
-    def worker():
-        try:
-            print(f"Building PDF for {dirname}...")
-            book = Book(orig)
-            book.set_folder_name(dirname)
-            # honor GUI toggle for including cover as first page
-            if include_cover:
-                book.set_include_cover(True)
-            book.make_pdf()
-            # always run ocrmypdf to compress (and OCR if enabled)
-            pdf_path = os.path.join(download_dir, dirname, 'pdf', f"{dirname}.pdf")
-            # build ocrmypdf command exactly from user-provided flags
-            cmd = ['ocrmypdf']
-            if ocr_flags:
-                cmd.extend(ocr_flags)
-            cmd.extend([pdf_path, pdf_path])
-            # DEBUG: show the ocrmypdf command in streaming worker
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            for line in proc.stdout:
-                print(line.strip())
-            proc.wait()
-        except Exception:
-            print("Error while building PDF:")
-            import traceback
+        def worker():
+            old_print = builtins.print
+            builtins.print = hook_print
+            try:
+                print(f"Building PDF for {dirname}...")
+                book = Book(orig)
+                book.set_folder_name(dirname)
+                # honor GUI toggle for including cover as first page
+                if include_cover:
+                    book.set_include_cover(True)
+                book.make_pdf()
+                # always run ocrmypdf to compress (and OCR if enabled)
+                pdf_path = os.path.join(download_dir, dirname, 'pdf', f"{dirname}.pdf")
+                # build ocrmypdf command exactly from user-provided flags
+                cmd = ['ocrmypdf']
+                if ocr_flags:
+                    cmd.extend(ocr_flags)
+                cmd.extend([pdf_path, pdf_path])
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in proc.stdout:
+                    print(line.strip())
+                proc.wait()
+            except Exception:
+                print("Error while building PDF:")
+                import traceback
 
-            traceback.print_exc()
-        finally:
-            builtins.print = old_print
-            records.put(None)
-            pdf_lock.release()
+                traceback.print_exc()
+            finally:
+                builtins.print = old_print
+                pdf_lock.release()
+                records.put(None)
 
-    threading.Thread(target=worker, daemon=True).start()
-    def generate():
-        while True:
-            msg = records.get()
-            if msg is None:
-                yield 'event: done\ndata: {}\n\n'
-                break
-            payload = json.dumps({'msg': msg})
-            yield f"event: log\ndata: {payload}\n\n"
+        def generate():
+            while True:
+                msg = records.get()
+                if msg is None:
+                    yield 'event: done\ndata: {}\n\n'
+                    break
+                payload = json.dumps({'msg': msg})
+                yield f"event: log\ndata: {payload}\n\n"
 
-    return Response(generate(), mimetype='text/event-stream')
+        # Prepare the response before handing lock ownership to the worker.
+        response = Response(generate(), mimetype='text/event-stream')
+        threading.Thread(target=worker, daemon=True).start()
+    except Exception as e:
+        pdf_lock.release()
+        return jsonify({'error': str(e)}), 500
+    return response
 
 @app.route('/pages/<dirname>', methods=['GET'])
 def pages(dirname):
