@@ -6,6 +6,7 @@ import re
 import warnings
 import argparse
 import threading
+import tempfile
 from PIL import Image, UnidentifiedImageError
 from glob import glob
 from math import ceil
@@ -517,41 +518,58 @@ class Book:
         # ensure per-book pdf directory exists
         os.makedirs(self.pdf_dir, exist_ok=True)
         output_pdf = os.path.join(self.pdf_dir, f"{self.folder_name}.pdf")
-        # try efficient PDF assembly via img2pdf to reduce peak memory use
+        temporary_pdf = None
+        images = []
         try:
-            import img2pdf
+            # Keep the previous PDF intact until either converter finishes.
+            # Use the destination directory so replacement stays atomic.
+            converted = False
+            with tempfile.NamedTemporaryFile(
+                dir=self.pdf_dir, prefix=".nbno-", suffix=".pdf", delete=False
+            ) as temporary:
+                temporary_pdf = temporary.name
+                try:
+                    import img2pdf
 
-            with open(output_pdf, "wb") as f:
-                f.write(img2pdf.convert(files))
-            print(f"PDF created: {output_pdf}")
-            return True
-        except ImportError:
-            pass
-        except Exception as e:
-            print(f"Error creating PDF via img2pdf: {e}")
-            print("Falling back to PIL for PDF creation.")
+                    temporary.write(img2pdf.convert(files))
+                except ImportError:
+                    pass
+                except Exception as e:
+                    print(f"Error creating PDF via img2pdf: {e}")
+                    print("Falling back to PIL for PDF creation.")
+                else:
+                    converted = True
 
-        # fallback to PIL-based assembly (may use more memory)
-        self._pdf_redownload_attempts.clear()
-        try:
-            images = []
-            for path in files:
-                image = self._open_pdf_image(path)
-                if image is None:
-                    return False
-                images.append(image)
-            images[0].save(
-                output_pdf,
-                "PDF",
-                resolution=100.0,
-                save_all=True,
-                append_images=images[1:]
-            )
+            if not converted:
+                # Pillow opens the temporary path afresh, discarding partial output.
+                self._pdf_redownload_attempts.clear()
+                for path in files:
+                    image = self._open_pdf_image(path)
+                    if image is None:
+                        return False
+                    images.append(image)
+                images[0].save(
+                    temporary_pdf,
+                    "PDF",
+                    resolution=100.0,
+                    save_all=True,
+                    append_images=images[1:]
+                )
+
+            os.replace(temporary_pdf, output_pdf)
             print(f"PDF created: {output_pdf}")
             return True
         except Exception as e:
             print(f"Error creating PDF: {e}")
             return False
+        finally:
+            for image in images:
+                image.close()
+            if temporary_pdf is not None:
+                try:
+                    os.remove(temporary_pdf)
+                except FileNotFoundError:
+                    pass
 
 
 def f2pdf(image_location, pdf_name):
