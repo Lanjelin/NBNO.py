@@ -307,8 +307,13 @@ def pages(dirname):
 @app.route('/delete/<bookname>', methods=['DELETE'])
 def delete_book(bookname):
     import shutil
-    download_dir = os.environ.get('DOWNLOAD_DIR', '.')
+    download_dir = os.path.realpath(os.environ.get('DOWNLOAD_DIR', '.'))
     folder = os.path.join(download_dir, bookname)
+    # Only delete real, immediate children of the collection, never its root or links.
+    if (bookname in ('.', '..')
+            or os.path.dirname(os.path.realpath(folder)) != download_dir
+            or os.path.islink(folder)):
+        return jsonify({'error': 'Invalid book directory'}), 400
     try:
         shutil.rmtree(folder)
         return ('', 204)
