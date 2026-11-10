@@ -135,9 +135,14 @@ def index():
 @app.route('/files/<path:subpath>')
 def files(subpath):
     # serve downloaded image files or PDFs
-    download_dir = os.environ.get('DOWNLOAD_DIR', '.')
-    path = os.path.join(download_dir, subpath)
-    if os.path.exists(path):
+    download_dir = os.path.realpath(os.environ.get('DOWNLOAD_DIR', '.'))
+    try:
+        path = os.path.realpath(os.path.join(download_dir, subpath))
+        if os.path.commonpath((download_dir, path)) != download_dir:
+            return ('Not found', 404)
+    except ValueError:
+        return ('Not found', 404)
+    if os.path.isfile(path):
         # on-the-fly resizing for JPEGs via ?w=width parameter
         if subpath.lower().endswith('.jpg'):
             width = request.args.get('w', type=int)
@@ -145,17 +150,17 @@ def files(subpath):
                 try:
                     from PIL import Image
 
-                    img = Image.open(path)
-                    wpercent = width / float(img.size[0])
-                    hsize = int(img.size[1] * wpercent)
-                    img = img.resize((width, hsize), Image.LANCZOS)
-                    buf = io.BytesIO()
-                    img.save(buf, format='JPEG', quality=85)
+                    with Image.open(path) as img:
+                        wpercent = width / float(img.size[0])
+                        hsize = int(img.size[1] * wpercent)
+                        with img.resize((width, hsize), Image.LANCZOS) as resized:
+                            buf = io.BytesIO()
+                            resized.save(buf, format='JPEG', quality=85)
                     buf.seek(0)
                     return send_file(buf, mimetype='image/jpeg')
                 except Exception:
                     pass
-        return send_from_directory(download_dir, subpath)
+        return send_file(path, download_name=os.path.basename(subpath))
     return ('Not found', 404)
 
 @app.route('/make_pdf/<dirname>', methods=['GET', 'POST'])
