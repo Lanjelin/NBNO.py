@@ -79,7 +79,7 @@ class PageRetryTests(unittest.TestCase):
     def test_persistent_http_tile_failure_stops_and_preserves_existing_page(self):
         self.outcome = lambda region, number: 404 if region == self.last_region else 200
         self.output.write_bytes(b'existing page')
-        self.assertFalse(self.book.download())
+        self.assertEqual(self.book.download_page('0001'), (False, 200))
         self.assertEqual(len(self.requests), 12)
         self.assertEqual(self.output.read_bytes(), b'existing page')
 

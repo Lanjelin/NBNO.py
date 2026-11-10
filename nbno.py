@@ -126,7 +126,6 @@ class Book:
             self.sources_dir = os.path.join(self.folder_path, 'sources') + os.path.sep
             self.pdf_dir = os.path.join(self.folder_path, 'pdf') + os.path.sep
             self.meta_dir = os.path.join(self.folder_path, 'metadata') + os.path.sep
-        self.existing_images = []
         self.find_existing_files()
 
     def load_cookie(self, file_path):
@@ -140,13 +139,11 @@ class Book:
             self.output(self.session.headers)
 
     def find_existing_files(self):
-        filelist = []
-        filelist.extend(glob(os.path.join(f"{self.folder_path}*.jpg")))
-        if filelist:
-            for file in filelist:
-                self.existing_images.extend(
-                    [file.split(".jpg")[0].split(os.path.sep)[2]]
-                )
+        self.existing_images = [
+            os.path.splitext(os.path.basename(path))[0]
+            for path in glob(os.path.join(self.sources_dir, "*.jpg"))
+            if os.path.isfile(path)
+        ]
 
     def set_resize(self, size):
         self.resize = int(size) / 100
@@ -270,6 +267,7 @@ class Book:
         self.include_cover = bool(flag)
 
     def download(self):
+        self.find_existing_files()
         # prepare directories: sources (images), metadata, pdf
         os.makedirs(self.sources_dir, exist_ok=True)
         os.makedirs(self.meta_dir, exist_ok=True)
@@ -314,15 +312,15 @@ class Book:
                 if cover in self.page_data:
                     back.append(cover)
             imagelist = front + numeric + back
+        counter = 0
         if self.existing_images:
-            counter = 0
-            for image in self.existing_images:
-                if image in imagelist:
-                    counter += 1
-                    imagelist.remove(image)
+            existing = set(self.existing_images)
+            pending = [page for page in imagelist if page not in existing]
+            counter = len(imagelist) - len(pending)
+            imagelist = pending
             self.output(f"{' '*5}Hopper over {counter} eksisterende sider.")
         if len(imagelist) == 0:
-            if self.existing_images:
+            if counter:
                 self.output(f"{' '*5}Alle bildene finnes allerede lokalt; hopper over nedlasting.")
                 self.download_skipped = True
                 return True
