@@ -57,6 +57,7 @@ class Book:
         self.folder_path = ""
         self.existing_images = []
         self.page_names = []
+        self._page_numbers = {}
         self.raw_metadata = []
         self.page_data = {}
         self.page_url = {}
@@ -151,14 +152,14 @@ class Book:
     def set_from_page(self, frompage):
         pages = []
         for page in self.page_names:
-            if int(page) >= frompage:
+            if self._page_numbers[page] >= frompage:
                 pages.append(page)
         self.page_names = pages
 
     def set_to_page(self, topage):
         pages = []
         for page in self.page_names:
-            if int(page) <= topage:
+            if self._page_numbers[page] <= topage:
                 pages.append(page)
         self.page_names = pages
 
@@ -217,11 +218,16 @@ class Book:
             else:
                 page_name = page["@id"].split("_")[-1]
             page_dims = [page["width"], page["height"]]
-            if page_name.isdecimal():
+            if page_name.isdecimal() or self.media_type == "digikart":
                 self.page_names.append(page_name)
             self.page_data[page_name] = page_dims
             self.page_url[page_name] = page["images"][0]["resource"]["service"]["@id"]
         self.page_names = sorted(self.page_names)
+        # Map canvas names are compound identifiers; bounds use stable positions.
+        self._page_numbers = {
+            page: position if self.media_type == "digikart" else int(page)
+            for position, page in enumerate(self.page_names, 1)
+        }
         self.num_pages = len(self.page_names)
 
     def fetch_new_image_url(self, side, column, row):
@@ -300,18 +306,16 @@ class Book:
         self.download_skipped = False
         imagelist = self.page_names
         if self.covers:
-            # order covers same as GUI/web PDF: C1, I1, numbered pages, I3, C2, C3
+            # order covers same as GUI/web PDF: C1, I1, ordinary pages, I3, C2, C3
             front = []
             back = []
             for cover in ("C1", "I1"):  # front covers
                 if cover in self.page_data:
                     front.append(cover)
-            # numeric pages (page_names are already sorted)
-            numeric = [p for p in imagelist if p.isdecimal()]
             for cover in ("I3", "C2", "C3"):  # back covers
                 if cover in self.page_data:
                     back.append(cover)
-            imagelist = front + numeric + back
+            imagelist = front + imagelist + back
         counter = 0
         if self.existing_images:
             existing = set(self.existing_images)
@@ -492,7 +496,7 @@ class Book:
         pattern = os.path.join(self.sources_dir, "*.jpg")
         files = sorted(glob(pattern))
         if self.include_cover:
-            # desired order: C1, I1, numbered pages, I3, C2, C3
+            # desired order: C1, I1, ordinary pages, I3, C2, C3
             basenames = [os.path.basename(f) for f in files]
             lower = [b.lower() for b in basenames]
             ordered = []
@@ -501,9 +505,9 @@ class Book:
                 if name in lower:
                     idx = lower.index(name)
                     ordered.append(files[idx])
-            # numeric pages
+            # Map pages keep their compound filenames between the covers.
             for fpath, bname in zip(files, basenames):
-                if bname[:-4].isdigit():
+                if bname.lower() not in ('c1.jpg', 'i1.jpg', 'i3.jpg', 'c2.jpg', 'c3.jpg'):
                     ordered.append(fpath)
             # back covers
             for name in ('i3.jpg', 'c2.jpg', 'c3.jpg'):
@@ -644,10 +648,12 @@ def main():
         default=False,
     )
     optional.add_argument(
-        "--start", metavar="<int>", help="Sidetall å starte på", default=False
+        "--start", metavar="<int>",
+        help="Sidetall å starte på (kart: posisjon fra 1 i sortert siderekkefølge)", default=False
     )
     optional.add_argument(
-        "--stop", metavar="<int>", help="Sidetall å stoppe på", default=False
+        "--stop", metavar="<int>",
+        help="Sidetall å stoppe på (kart: posisjon fra 1 i sortert siderekkefølge)", default=False
     )
     optional.add_argument(
         "--cookie",

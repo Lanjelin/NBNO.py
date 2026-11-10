@@ -77,16 +77,24 @@ def index():
             mtype = None
             pages = None
             custom = None
-        # pick C1.jpg if present, else fall back to first page 0001.jpg; else use metadata thumbnail
+        # Prefer a local cover, book page 0001, or first sorted map image over metadata.
         sources_folder = os.path.join(folder, 'sources')
         cover_file = None
         # prefer front cover C1.jpg
         if os.path.exists(os.path.join(sources_folder, 'C1.jpg')):
             cover_file = 'C1.jpg'
         else:
-            # fallback to first numeric page
+            # Maps keep compound canvas filenames rather than a plain 0001.
             if os.path.exists(os.path.join(sources_folder, '0001.jpg')):
                 cover_file = '0001.jpg'
+            elif mtype == 'digikart' and os.path.isdir(sources_folder):
+                map_images = sorted(
+                    filename for filename in os.listdir(sources_folder)
+                    if filename.lower().endswith('.jpg')
+                    and os.path.isfile(os.path.join(sources_folder, filename))
+                )
+                if map_images:
+                    cover_file = map_images[0]
         # detect existing pdf in pdf subfolder and compute size if present
         pdf_path = os.path.join(folder, 'pdf', f"{name}.pdf")
         has_pdf = os.path.exists(pdf_path)
@@ -275,7 +283,7 @@ def pages(dirname):
     imgs = sorted(f for f in os.listdir(sources) if f.lower().endswith('.jpg'))
     include_cover = request.args.get('include_cover') == 'true'
     if include_cover:
-        # desired order: C1, I1, numbered pages, I3, C2, C3
+        # desired order: C1, I1, ordinary pages, I3, C2, C3
         lower_imgs = [f.lower() for f in imgs]
         ordered = []
         for name in ('c1.jpg', 'i1.jpg'):
@@ -284,10 +292,10 @@ def pages(dirname):
                 ordered.append(imgs[idx])
                 imgs.pop(idx)
                 lower_imgs.pop(idx)
-        # numeric pages
-        numeric = [f for f in imgs if f[:-4].isdigit()]
-        ordered.extend(numeric)
-        imgs = [f for f in imgs if not f[:-4].isdigit()]
+        # Map filenames are ordinary pages too, not just decimal page numbers.
+        covers = ('c1.jpg', 'i1.jpg', 'i3.jpg', 'c2.jpg', 'c3.jpg')
+        ordered.extend(f for f in imgs if f.lower() not in covers)
+        imgs = [f for f in imgs if f.lower() in covers]
         lower_imgs = [f.lower() for f in imgs]
         for name in ('i3.jpg', 'c2.jpg', 'c3.jpg'):
             if name in lower_imgs:
@@ -357,7 +365,7 @@ def preview():
                 preview_page = 'C1'
         except Exception:
             pass
-    # fallback to first numeric page thumbnail
+    # fallback to the first ordinary page thumbnail, including map canvases
     if not thumb and book.page_names:
         preview_page = book.page_names[0]
         thumb = f"{book.page_url[preview_page]}/full/!200,200/0/native.jpg"
