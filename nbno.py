@@ -358,89 +358,96 @@ class Book:
     def download_page(self, page_number):
         """Laster ned og setter sammen bildedeler for side av boken"""
         max_column, max_row = self.update_column_row(page_number)
-        image_parts = []
-        max_width, max_height = 0, 0
-        row_counter, column_counter = 0, 0
-        row_number = 0
-        HTTPerror = 0
-        while row_number <= max_row:
-            column_number = 0
-            while column_number <= max_column:
-                url = self.fetch_new_image_url(
-                    page_number, column_number, row_number)
-                try:
-                    response = self.session.get(url, timeout=10)
-                    response.raise_for_status()
-                except RequestException as error:
-                    try:
-                        response
-                    except:
-                        HTTPerror = 408
-                        break
-                    else:
-                        if response.status_code == 403:
-                            HTTPerror = 403
-                            break
-                    if self.print_error:
-                        print(error)
-                else:
-                    try:
-                        img = Image.open(io.BytesIO(response.content))
-                        with self.image_lock:
-                            image_parts.append(img)
-                        if row_number == 0:
-                            max_width += img.size[0]
-                            column_counter += 1
-                        if column_number == 0:
-                            max_height += img.size[1]
-                            row_counter += 1
-                    except IOError as error:
-                        if self.print_error:
-                            print(error)
-                column_number += 1
-            row_number += 1
-            if HTTPerror != 0:
-                break
-        if HTTPerror == 403:
-            return False, 403
-        elif HTTPerror == 408:
-            return False, 408
-        elif not len(image_parts):
-            return False, 200
-        else:
-            if len(image_parts) == (column_number * row_number):
-                part_width, part_height = image_parts[0].size
-                full_page = Image.new("RGB", (max_width, max_height))
-                row_number = 0
-                part_counter = 0
-                row_counter = row_counter - 1
-                column_counter = column_counter - 1
-                while row_number <= row_counter:
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            image_parts = []
+            full_page = None
+            max_width, max_height = 0, 0
+            row_counter, column_counter = 0, 0
+            row_number = 0
+            HTTPerror = 0
+            try:
+                while row_number <= max_row:
                     column_number = 0
-                    while column_number <= column_counter:
-                        full_page.paste(
-                            image_parts[part_counter],
-                            ((column_number * part_width),
-                             (row_number * part_height)),
-                        )
-                        part_counter += 1
+                    while column_number <= max_column:
+                        url = self.fetch_new_image_url(
+                            page_number, column_number, row_number)
+                        response = None
+                        try:
+                            response = self.session.get(url, timeout=10)
+                            response.raise_for_status()
+                        except RequestException as error:
+                            if response is None:
+                                HTTPerror = 408
+                                break
+                            if response.status_code == 403:
+                                HTTPerror = 403
+                                break
+                            if self.print_error:
+                                print(error)
+                        else:
+                            try:
+                                img = Image.open(io.BytesIO(response.content))
+                                with self.image_lock:
+                                    image_parts.append(img)
+                                if row_number == 0:
+                                    max_width += img.size[0]
+                                    column_counter += 1
+                                if column_number == 0:
+                                    max_height += img.size[1]
+                                    row_counter += 1
+                            except IOError as error:
+                                if self.print_error:
+                                    print(error)
                         column_number += 1
                     row_number += 1
-                if self.resize != 0:
-                    full_page = full_page.resize(
-                        [int(self.resize * s) for s in full_page.size]
-                    )
-                full_page.save(os.path.join(self.sources_dir, f"{page_number}.jpg"))
-                if self.verbose:
-                    print(f"{' '*5}Lagret side {page_number}.jpg")
-                return True, 200
-            else:
+                    if HTTPerror != 0:
+                        break
+                if HTTPerror:
+                    return False, HTTPerror
+                if not image_parts:
+                    return False, 200
+                if len(image_parts) == (column_number * row_number):
+                    part_width, part_height = image_parts[0].size
+                    full_page = Image.new("RGB", (max_width, max_height))
+                    row_number = 0
+                    part_counter = 0
+                    row_counter -= 1
+                    column_counter -= 1
+                    while row_number <= row_counter:
+                        column_number = 0
+                        while column_number <= column_counter:
+                            full_page.paste(
+                                image_parts[part_counter],
+                                ((column_number * part_width),
+                                 (row_number * part_height)),
+                            )
+                            part_counter += 1
+                            column_number += 1
+                        row_number += 1
+                    if self.resize != 0:
+                        resized = full_page.resize(
+                            [int(self.resize * s) for s in full_page.size]
+                        )
+                        full_page.close()
+                        full_page = resized
+                    full_page.save(os.path.join(self.sources_dir, f"{page_number}.jpg"))
+                    if self.verbose:
+                        print(f"{' '*5}Lagret side {page_number}.jpg")
+                    return True, 200
                 if page_number in ["I3", "I1", "C3", "C2", "C1"]:
                     print(f"Feilet å laste ned side {page_number}.jpg - hopper over.")
                     return True, 200
-                else:
+                if attempt + 1 < max_attempts:
                     print(f"Feilet å laste ned side {page_number}.jpg - prøver igjen.")
-                    return self.download_page(page_number)
+                else:
+                    print(f"Feilet å laste ned side {page_number}.jpg - avbryter etter {max_attempts} forsøk.")
+            finally:
+                for img in image_parts:
+                    img.close()
+                if full_page is not None:
+                    full_page.close()
+        return False, 200
 
     def _attempt_redownload_page_for_pdf(self, path):
         page_name = os.path.splitext(os.path.basename(path))[0]
